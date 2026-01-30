@@ -147,10 +147,65 @@ py scripts/play.py --algo ppo \
 
 ---
 
+## SAC Stability Improvement Plan Results (January 29, 2026)
+
+**Goal:** Improve SAC stability on Wavy V2 to close the gap with PPO (225).
+
+### Phase 1 Experiments (100k steps each)
+
+| Experiment | Setting | Best Eval | Final (100k) | Stability |
+|------------|---------|-----------|--------------|-----------|
+| Baseline | default | 154 (100k) | 154 | Reference |
+| 1B | tau=0.002 | **14.6** | 13.5 | FAILED - too slow |
+| 1C | batch_size=512 | **209** (90k) | 131 | Unstable (169->14->209->131) |
+| 1D | lr=0.001 | **158** (90k) | 146 | STABLE (~8% drop) |
+
+**Findings:**
+- **tau=0.002**: Complete failure. Slower target network updates prevented learning.
+- **batch_size=512**: Highest peak (209 - 36% above baseline) but highly unstable with wild swings.
+- **lr=0.001**: Matched baseline with better end stability. Most consistent learner.
+
+### Phase 2 Combined Experiment (150k steps)
+
+Settings: `--learning-rate 0.001 --batch-size 512 --buffer-size 500000 --gradient-steps 2`
+
+| Step | Eval Reward |
+|------|-------------|
+| 20k | -15.32 |
+| 40k | -17.49 |
+| 60k | -15.34 |
+| 80k | 14.53 |
+| 100k | 1.27 |
+| 120k | **16.66** (best) |
+| 140k | -2.78 |
+
+**Result: FAILED** - Best only 16.66, **89% below baseline (154)**.
+
+The combined settings catastrophically interfered:
+- Larger buffer (500k) + slower lr (0.001) + fewer gradient steps (2) = too conservative
+- Model learned to survive (ep_len 2000 at 100k) but not make progress
+- High critic loss early (2e+03 to 5e+03) indicated value function instability
+
+### Key Learnings
+
+1. **Hyperparameter combinations don't work additively** - settings that work individually can destroy performance when combined.
+2. **batch_size=512 shows most promise** - achieved 209 peak, but needs original lr (0.003), not slower.
+3. **Lower lr alone (0.001) provides stability but not improvement** - matched baseline but didn't exceed it.
+4. **Phase 2 was too conservative** - all changes slowed learning; needed fewer simultaneous changes.
+
+### Recommendations for Future SAC Wavy V2 Experiments
+
+1. Try batch_size=512 with original settings (lr=0.003, grad_steps=4, buffer=200k)
+2. If trying lr changes, use 0.002 instead of 0.001 (less aggressive reduction)
+3. Change only ONE hyperparameter at a time from baseline
+4. Consider PPO for production use on Wavy V2 until SAC stability improves
+
+---
+
 ## Next Steps (Phase Two)
 
 1. ~~Try SAC with `gradient_steps=4` on Wavy V1/V2~~ **DONE - works!**
-2. Try SAC with `gradient_steps=2` on Wavy V2 (even more conservative)
-3. Longer training runs (200k+) for SAC on Wavy V2 to match PPO
-4. Experiment with reward scaling for SAC on harder tracks
+2. ~~Try SAC stability improvements (tau, batch_size, lr)~~ **DONE - batch_size=512 best**
+3. Try batch_size=512 with original lr (0.003) - most promising direction
+4. Longer training runs (200k+) for SAC on Wavy V2 to match PPO
 5. Consider TD3 as alternative to SAC for stability

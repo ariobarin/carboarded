@@ -1,11 +1,3 @@
-# Handoff: Continue SAC Stability Improvement Plan
-
-Use this prompt to guide another agent to finish the SAC stability work.
-
----
-
-## Copy this prompt to the next agent
-
 **Task: Continue and complete the SAC Stability Improvement Plan.**
 
 **Context:** This repo is a racing RL sim (Gymnasium env). We are improving SAC stability and convergence on the hardest track (Wavy V2). The full plan is in `.cursor/plans/sac_stability_improvement_20ca138b.plan.md` — **do not edit the plan file**. Follow the experiment order and success metrics defined there.
