@@ -18,6 +18,9 @@ py scripts/train.py --preset fast --total-timesteps 200000
 py scripts/train.py --algo sac --preset balanced --total-timesteps 300000
 py scripts/train.py --config configs/fast_iter_v3_complex_wavy_v1.yaml --learning-rate 0.003 --ent-coef 0.03
 
+# Train with random starting positions (improves exploration/robustness)
+py scripts/train.py --algo sac --preset fast --total-timesteps 80000 --config configs/fast_iter_v3_complex_wavy_v2_progress_0p7.yaml --random-start --ent-coef auto --gradient-steps 4 --learning-starts 0
+
 # Fast iteration (skip eval/checkpoints/TensorBoard)
 py scripts/train.py --preset fast --no-eval --no-checkpoint --no-tensorboard
 
@@ -80,6 +83,7 @@ These findings from Phase 1 experiments should guide hyperparameter choices:
 - **SAC gradient_steps scales inversely with difficulty:** 8 for simple tracks, 4 for wavy tracks.
 - **SAC curriculum learning (fine-tuning pretrained models on harder tracks) destroys policy.**
 - **Time penalty, higher collision penalties, gamma/GAE tweaks, and clip_range changes all failed to improve results.**
+- **Random starting positions (`--random-start`) improves exploration** but makes training harder. On Wavy V2 (80K steps): SAC peaked at 52.16 (vs PPO's 22.06), but both show mid-training instability. Best model callback captures peak performance. Recommend longer training (150K+) with random start for robust policies.
 
 ## Config Files
 

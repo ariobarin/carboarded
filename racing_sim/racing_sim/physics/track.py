@@ -204,3 +204,46 @@ class Track:
         for wall in self.outer_walls + self.inner_walls:
             segments.append((wall.a, wall.b))
         return segments
+
+    def get_spawn_position(self, checkpoint_index: int) -> Tuple[Vec2d, float]:
+        """
+        Get a valid spawn position and angle at a given checkpoint.
+
+        The car is placed at the center of the track width (between inner
+        and outer walls) and faces tangent to the track in the direction
+        of progress (counter-clockwise).
+
+        Args:
+            checkpoint_index: Index of the checkpoint (0 to num_checkpoints-1)
+
+        Returns:
+            Tuple of (position, angle) where angle is in radians
+        """
+        num_checkpoints = len(self.checkpoints)
+        checkpoint_index = checkpoint_index % num_checkpoints
+
+        # Get the angle for this checkpoint
+        angle = (checkpoint_index / num_checkpoints) * 2 * math.pi
+
+        # Get radii at this angle
+        outer_rx, outer_ry, inner_rx, inner_ry = self._radii_at_angle(angle)
+
+        # Calculate center of track at this angle (midpoint between inner and outer)
+        mid_rx = (outer_rx + inner_rx) / 2
+        mid_ry = (outer_ry + inner_ry) / 2
+
+        position = Vec2d(
+            self.center.x + mid_rx * math.cos(angle),
+            self.center.y + mid_ry * math.sin(angle),
+        )
+
+        # Calculate tangent angle (perpendicular to radial, counter-clockwise)
+        # The radial points outward at 'angle', so tangent is angle + pi/2
+        tangent_angle = angle + math.pi / 2
+
+        return position, tangent_angle
+
+    @property
+    def num_checkpoints(self) -> int:
+        """Return the number of checkpoints."""
+        return len(self.checkpoints)

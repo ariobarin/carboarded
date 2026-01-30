@@ -202,10 +202,57 @@ The combined settings catastrophically interfered:
 
 ---
 
-## Next Steps (Phase Two)
+## Phase 2: SAC Wavy V2 Improvement Experiments (January 30, 2026)
 
-1. ~~Try SAC with `gradient_steps=4` on Wavy V1/V2~~ **DONE - works!**
-2. ~~Try SAC stability improvements (tau, batch_size, lr)~~ **DONE - batch_size=512 best**
-3. Try batch_size=512 with original lr (0.003) - most promising direction
-4. Longer training runs (200k+) for SAC on Wavy V2 to match PPO
-5. Consider TD3 as alternative to SAC for stability
+**Goal:** Beat PPO baseline (225 at 80k) with SAC using same training budget.
+
+### PPO Reference (Target)
+- 216 at 50k steps
+- **225 at 80k steps** (stable)
+
+### Experiment Results (all at 80k steps)
+
+| Experiment | Settings | 30k | 50k | 80k | Peak | Status |
+|------------|----------|-----|-----|-----|------|--------|
+| **A: batch_size=512** | bs=512, gs=4 | 145 | 14.7 | **193** | 169 | Below target, unstable |
+| **B: TD3** | - | - | - | - | - | Not supported in train.py |
+| **C: grad_steps=8** | bs=256, gs=8 | 128 | 27.2 | **111** | 169 | Failed - worst final |
+| **D: Combined** | bs=512, gs=8 | -8.4 | 145 | **128** | 149 | Failed - most unstable |
+
+### Key Observations
+
+1. **None of the SAC configurations beat PPO on Wavy V2.**
+   - Best SAC final: 193 (Exp A) vs PPO: 225
+   - Best SAC peak: 169 (Exp A & C at 40k/60k)
+
+2. **All SAC runs showed significant instability:**
+   - Exp A: 169 @ 40k -> 14.7 @ 50k -> 193 @ 80k (recovered)
+   - Exp C: 128 @ 30k -> 27.2 @ 50k -> 111 @ 80k (degraded)
+   - Exp D: 49 @ 20k -> -8.4 @ 30k -> 149 @ 40k -> 38.4 @ 60k -> 128 @ 80k (wild swings)
+
+3. **Larger batch sizes help peaks but not stability.**
+   - batch_size=512 achieved highest peaks (169, 149) but couldn't maintain them.
+
+4. **Higher gradient_steps=8 hurts Wavy V2:**
+   - Confirms earlier finding: grad_steps=4 is the sweet spot for hard tracks.
+   - grad_steps=8 causes over-fitting/instability.
+
+5. **TD3 not available** - train.py only supports PPO and SAC.
+
+### Conclusion
+
+**SAC cannot match PPO on Wavy V2 within 80k steps.** The fundamental issue is SAC's instability on complex tracks. While SAC can reach competitive peaks (169-193), it consistently loses performance through mid-training collapses that PPO avoids.
+
+**Recommendation:** Use PPO for Wavy V2 production workloads. SAC remains better for simple tracks where it converges 2x faster than PPO.
+
+---
+
+## Next Steps (Future Work)
+
+1. ~~Try SAC with `gradient_steps=4` on Wavy V1/V2~~ **DONE - works on V1**
+2. ~~Try SAC stability improvements (tau, batch_size, lr)~~ **DONE - batch_size=512 best peak**
+3. ~~Try batch_size=512 with original lr on Wavy V2~~ **DONE - 193 at 80k, still below PPO**
+4. ~~Consider TD3~~ **Not available in train.py**
+5. **SAC can't beat PPO on Wavy V2** - use PPO for hard tracks
+6. Future: Try SAC with prioritized experience replay (PER) for stability
+7. Future: Try ensemble critics for SAC stability

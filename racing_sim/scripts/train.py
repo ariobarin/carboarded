@@ -268,6 +268,16 @@ def build_arg_parser() -> argparse.ArgumentParser:
         default=None,
         help="Path to pretrained model to load (for curriculum learning / fine-tuning)"
     )
+    parser.add_argument(
+        "--random-start",
+        action="store_true",
+        help="Start car at random checkpoint each episode (improves exploration)"
+    )
+    parser.add_argument(
+        "--normalize",
+        action="store_true",
+        help="Wrap env in VecNormalize for reward normalization (recommended for SAC stability)"
+    )
 
     return parser
 
@@ -316,6 +326,25 @@ def make_vec_env(env_fns, vec_env_type: str):
     return DummyVecEnv(env_fns)
 
 
+def make_save_vec_normalize_callback(save_path: str, env):
+    """Create a callback to save VecNormalize stats when a new best model is saved."""
+    from stable_baselines3.common.callbacks import BaseCallback
+
+    class SaveVecNormalizeCallback(BaseCallback):
+        def __init__(self):
+            super().__init__()
+            self.save_path = save_path
+            self.env = env
+
+        def _on_step(self):
+            """Called on each step. Save VecNormalize stats."""
+            vec_norm_path = Path(self.save_path) / "vecnormalize.pkl"
+            self.env.save(str(vec_norm_path))
+            return True
+
+    return SaveVecNormalizeCallback()
+
+
 def build_preset_kwargs(args) -> dict:
     """Build preset kwargs with CLI overrides applied."""
     preset_kwargs = PRESETS[args.algo][args.preset].copy()
@@ -360,6 +389,10 @@ def main():
     # Load config
     config, config_source = resolve_env_config(args.config)
 
+    # Apply CLI overrides to config
+    if args.random_start:
+        config.random_start = True
+
     # Create directories
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     run_name = f"{args.algo}_{args.preset}_{timestamp}"
@@ -374,6 +407,7 @@ def main():
     print(f"Using {args.n_envs} parallel environments")
     print(f"Preset: {args.preset}")
     print(f"Config: {config_source}")
+    print(f"Random start: {config.random_start}")
     print(f"Logs: {log_dir}")
     print(f"Models: {model_dir}")
 
@@ -381,10 +415,19 @@ def main():
     env_fns = [make_env(config, i, args.seed) for i in range(args.n_envs)]
     env = make_vec_env(env_fns, args.vec_env)
 
+    # Wrap with VecNormalize for reward normalization (helps SAC stability)
+    if args.normalize:
+        from stable_baselines3.common.vec_env import VecNormalize
+        env = VecNormalize(env, norm_obs=False, norm_reward=True, clip_reward=10.0, gamma=0.99)
+        print("VecNormalize enabled (norm_reward=True, norm_obs=False)")
+
     # Create evaluation environment
     eval_env = None
     if not args.no_eval:
         eval_env = make_vec_env([make_env(config, 0, args.seed + 1000)], "dummy")
+        # If training env uses VecNormalize, eval env must also be wrapped for compatibility
+        if args.normalize:
+            eval_env = VecNormalize(eval_env, norm_obs=False, norm_reward=True, clip_reward=10.0, gamma=0.99, training=False)
 
     # Create callbacks
     callbacks = []
@@ -400,6 +443,11 @@ def main():
     if eval_env is not None:
         from stable_baselines3.common.callbacks import EvalCallback
 
+        # Create callback to save VecNormalize stats with best model
+        callback_on_new_best = None
+        if args.normalize:
+            callback_on_new_best = make_save_vec_normalize_callback(str(model_dir / "best"), env)
+
         eval_callback = EvalCallback(
             eval_env,
             best_model_save_path=str(model_dir / "best"),
@@ -407,6 +455,7 @@ def main():
             eval_freq=max(args.eval_freq // args.n_envs, 1),
             n_eval_episodes=args.eval_episodes,
             deterministic=True,
+            callback_on_new_best=callback_on_new_best,
         )
         callbacks.append(eval_callback)
     callback = None
@@ -465,6 +514,12 @@ def main():
     final_path = model_dir / f"{args.algo}_final"
     model.save(str(final_path))
     print(f"\nFinal model saved to {final_path}")
+
+    # Save VecNormalize stats if used
+    if args.normalize:
+        vec_norm_path = model_dir / "vecnormalize.pkl"
+        env.save(str(vec_norm_path))
+        print(f"VecNormalize stats saved to {vec_norm_path}")
 
     # Cleanup
     env.close()

@@ -27,6 +27,7 @@ class Renderer:
         self.screen: Optional[pygame.Surface] = None
         self.clock: Optional[pygame.time.Clock] = None
         self._initialized = False
+        self._reset_requested = False
 
     def _init_pygame(self):
         """Initialize PyGame (deferred until first render)."""
@@ -54,7 +55,7 @@ class Renderer:
         car: Car,
         track: Track,
         lidar: Optional[Lidar] = None,
-        info: Optional[dict] = None
+        info: Optional[dict] = None,
     ) -> Optional[np.ndarray]:
         """
         Render the current state.
@@ -97,8 +98,7 @@ class Renderer:
         else:
             # Return numpy array for rgb_array mode
             return np.transpose(
-                np.array(pygame.surfarray.pixels3d(self.screen)),
-                (1, 0, 2)
+                np.array(pygame.surfarray.pixels3d(self.screen)), (1, 0, 2)
             )
 
     def _render_track(self, track: Track):
@@ -116,11 +116,12 @@ class Renderer:
             end = self._to_screen(outer)
             pygame.draw.line(self.screen, checkpoint_color, start, end, 1)
 
-    def _render_car(self, car: Car):
+    def _render_car(self, car: Car, color: Optional[Tuple[int, int, int]] = None):
         """Render the car as a rotated rectangle."""
+        car_color = color if color is not None else self.config.car_color
         corners = car.get_corners()
         screen_corners = [self._to_screen(c) for c in corners]
-        pygame.draw.polygon(self.screen, self.config.car_color, screen_corners)
+        pygame.draw.polygon(self.screen, car_color, screen_corners)
 
         # Draw a line indicating forward direction
         center = self._to_screen(car.position)
@@ -139,9 +140,18 @@ class Renderer:
 
             # Interpolate color based on distance (green=far, red=close)
             t = distance  # 0=hit close, 1=no hit/far
-            r = int(self.config.lidar_hit_color[0] * (1 - t) + self.config.lidar_clear_color[0] * t)
-            g = int(self.config.lidar_hit_color[1] * (1 - t) + self.config.lidar_clear_color[1] * t)
-            b = int(self.config.lidar_hit_color[2] * (1 - t) + self.config.lidar_clear_color[2] * t)
+            r = int(
+                self.config.lidar_hit_color[0] * (1 - t)
+                + self.config.lidar_clear_color[0] * t
+            )
+            g = int(
+                self.config.lidar_hit_color[1] * (1 - t)
+                + self.config.lidar_clear_color[1] * t
+            )
+            b = int(
+                self.config.lidar_hit_color[2] * (1 - t)
+                + self.config.lidar_clear_color[2] * t
+            )
             color = (r, g, b)
 
             pygame.draw.line(self.screen, color, start_screen, end_screen, 2)
@@ -194,6 +204,8 @@ class Renderer:
             if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_ESCAPE:
                     return False
+                if event.key == pygame.K_r:
+                    self._reset_requested = True
         return True
 
     def get_keyboard_input(self) -> Tuple[float, float]:
@@ -217,3 +229,14 @@ class Renderer:
             throttle = 1.0
 
         return steering, throttle
+
+    def was_reset_requested(self) -> bool:
+        """
+        Check if reset was requested and clear the flag.
+
+        Returns:
+            True if 'r' key was pressed since last check
+        """
+        was_requested = self._reset_requested
+        self._reset_requested = False
+        return was_requested

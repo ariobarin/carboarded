@@ -74,6 +74,9 @@ class EnvConfig:
     collision_penalty: float = -10.0
     time_penalty: float = -0.1
 
+    # Randomization
+    random_start: bool = False  # Start car at random checkpoint each episode
+
     @classmethod
     def from_yaml(cls, path: str) -> "EnvConfig":
         """Load configuration from a YAML file."""
@@ -114,6 +117,8 @@ class EnvConfig:
             config.slowdown_penalty_scale = data["slowdown_penalty_scale"]
         if "time_penalty" in data:
             config.time_penalty = data["time_penalty"]
+        if "random_start" in data:
+            config.random_start = data["random_start"]
 
         return config
 
@@ -166,6 +171,7 @@ class EnvConfig:
             "slowdown_penalty_scale": self.slowdown_penalty_scale,
             "collision_penalty": self.collision_penalty,
             "time_penalty": self.time_penalty,
+            "random_start": self.random_start,
         }
 
         Path(path).parent.mkdir(parents=True, exist_ok=True)

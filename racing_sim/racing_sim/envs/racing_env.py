@@ -124,10 +124,20 @@ class RacingEnv(gym.Env):
         """
         super().reset(seed=seed)
 
+        # Determine starting position
+        if self.config.random_start:
+            # Pick a random checkpoint and spawn there
+            checkpoint_idx = self.np_random.integers(0, self.track.num_checkpoints)
+            start_pos, start_angle = self.track.get_spawn_position(checkpoint_idx)
+        else:
+            # Use default start position
+            start_pos = self.track.start_position
+            start_angle = self.track.start_angle
+
         # Reset car to start position
         self.car.reset(
-            position=(self.track.start_position.x, self.track.start_position.y),
-            angle=self.track.start_angle
+            position=(start_pos.x, start_pos.y),
+            angle=start_angle
         )
 
         # Reset episode state
