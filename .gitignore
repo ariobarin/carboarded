@@ -1,0 +1,22 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+
+# Virtual environments
+.venv/
+
+# Test/build caches
+.pytest_cache/
+
+# IDE / tool config
+.claude/
+.cursor/
+
+# Training artifacts
+racing_sim/logs/
+racing_sim/models/
+
+# Windows artifacts
+nul

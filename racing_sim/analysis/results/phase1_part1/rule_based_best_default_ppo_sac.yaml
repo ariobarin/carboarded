@@ -1,0 +1,10 @@
+steer_gain: 2.0
+throttle_base: 0.3
+throttle_gain: 0.8
+brake_dist: 0.3
+throttle_min: 0.0
+mean_reward: -17.37009048461914
+std_reward: 0.0025845894124358892
+mean_checkpoints: 2.0
+collision_rate: 1.0
+mean_speed: 75.35661315917969

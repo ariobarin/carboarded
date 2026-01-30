@@ -1,0 +1,2 @@
+mean_reward,std_reward,mean_steps,mean_checkpoints,collision_rate,mean_speed,best_reward,worst_reward,name,type
+117.65049743652344,0.0,1200.0,59.0,0.0,81.79657745361328,117.65049743652344,117.65049743652344,ppo_fast_complex,sb3

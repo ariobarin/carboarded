@@ -1,0 +1,63 @@
+# =============================================================================
+# PPO WAVY V2 - Hard Difficulty Track (Best Config)
+# =============================================================================
+# Purpose: PPO config for highly wavy track with stronger progress shaping.
+# Track: Very wavy ellipse (waviness=0.08, waves=5)
+# Key settings: progress_reward_scale=0.7 (higher than v1), collision_penalty=-20
+#
+# TRAINING COMMAND:
+#   py scripts/train.py --algo ppo --preset fast --total-timesteps 80000 \
+#     --config racing_sim/configs/fast_iter_v3_complex_wavy_v2_progress_0p7.yaml \
+#     --eval-freq 10000 --eval-episodes 5 --learning-rate 0.003 --ent-coef 0.04
+#
+# Expected: >=200 mean reward by 50k steps, stable through 80k
+# Note: Requires higher ent_coef (0.04) than simpler tracks to avoid collapse
+# =============================================================================
+
+car:
+  mass: 1.0
+  width: 40.0
+  height: 20.0
+  max_speed: 1000.0
+  engine_power: 500.0
+  lateral_friction: 0.5
+  rolling_friction: 0.05
+  angular_damping: 0.7
+  steering_power: 750.0
+
+lidar:
+  num_rays: 9
+  ray_angles: [-90.0, -67.5, -45.0, -22.5, 0.0, 22.5, 45.0, 67.5, 90.0]
+  max_distance: 400.0
+
+track:
+  width: 100.0
+  outer_radius_x: 350.0
+  outer_radius_y: 250.0
+  center_x: 400.0
+  center_y: 300.0
+  waviness: 0.08
+  waves: 5
+  wave_phase: 0.0
+
+render:
+  screen_width: 800
+  screen_height: 600
+  fps: 60
+  show_lidar: true
+  car_color: [0, 100, 255]
+  wall_color: [100, 100, 100]
+  lidar_clear_color: [0, 255, 0]
+  lidar_hit_color: [255, 0, 0]
+  background_color: [30, 30, 30]
+
+physics_dt: 0.016666666666666666  # 1/60
+max_episode_steps: 2000
+
+checkpoint_reward: 1.0
+speed_bonus_scale: 0.05
+progress_reward_scale: 0.7
+slowdown_distance: 0.0
+slowdown_penalty_scale: 0.0
+collision_penalty: -20.0
+time_penalty: -0.0

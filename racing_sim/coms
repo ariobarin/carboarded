@@ -1,0 +1,1 @@
+py racing_sim/scripts/train.py --algo ppo --preset fast --config racing_sim/configs/fast_iter_v3_complex.yaml --total-timesteps 20000 --eval-freq 2000 --eval-episodes 2

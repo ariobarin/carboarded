@@ -1,0 +1,5 @@
+agents:
+  - name: ppo_fast_complex
+    type: sb3
+    algo: ppo
+    model_path: models/ppo_fast_20260127_084859/best/best_model.zip

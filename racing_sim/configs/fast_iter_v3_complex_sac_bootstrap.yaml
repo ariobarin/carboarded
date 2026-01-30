@@ -1,0 +1,65 @@
+# =============================================================================
+# SAC SIMPLE TRACK - Best Configuration (FASTER THAN PPO)
+# =============================================================================
+# Purpose: Optimized config for SAC on simple ellipse track.
+# Track: Simple ellipse (waviness=0, waves=0)
+# Key settings: progress_reward_scale=2.0, checkpoint_reward=2.0, collision_penalty=-5
+# Note: Higher reward scales work better for SAC than PPO.
+#
+# TRAINING COMMAND:
+#   py scripts/train.py --algo sac --preset fast --total-timesteps 50000 \
+#     --config racing_sim/configs/fast_iter_v3_complex_sac_bootstrap.yaml \
+#     --eval-freq 5000 --eval-episodes 5 --learning-rate 0.003 --ent-coef auto \
+#     --learning-starts 0 --batch-size 256 --buffer-size 200000 --gradient-steps 8
+#
+# Expected: >=300 mean reward by 20k steps (10k FASTER than PPO!), 415 by 50k
+# Key insight: gradient_steps=8 is critical for SAC speed on simple tracks
+# =============================================================================
+
+car:
+  mass: 1.0
+  width: 40.0
+  height: 20.0
+  max_speed: 1000.0
+  engine_power: 500.0
+  lateral_friction: 0.5
+  rolling_friction: 0.05
+  angular_damping: 0.7
+  steering_power: 750.0
+
+lidar:
+  num_rays: 9
+  ray_angles: [-90.0, -67.5, -45.0, -22.5, 0.0, 22.5, 45.0, 67.5, 90.0]
+  max_distance: 400.0
+
+track:
+  width: 100.0
+  outer_radius_x: 350.0
+  outer_radius_y: 250.0
+  center_x: 400.0
+  center_y: 300.0
+  waviness: 0.0
+  waves: 0
+  wave_phase: 0.0
+
+render:
+  screen_width: 800
+  screen_height: 600
+  fps: 60
+  show_lidar: true
+  car_color: [0, 100, 255]
+  wall_color: [100, 100, 100]
+  lidar_clear_color: [0, 255, 0]
+  lidar_hit_color: [255, 0, 0]
+  background_color: [30, 30, 30]
+
+physics_dt: 0.016666666666666666  # 1/60
+max_episode_steps: 2000
+
+checkpoint_reward: 2.0
+speed_bonus_scale: 0.1
+progress_reward_scale: 2.0
+slowdown_distance: 0.0
+slowdown_penalty_scale: 0.0
+collision_penalty: -5.0
+time_penalty: -0.0
