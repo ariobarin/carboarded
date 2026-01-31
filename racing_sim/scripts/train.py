@@ -274,6 +274,12 @@ def build_arg_parser() -> argparse.ArgumentParser:
         help="Start car at random checkpoint each episode (improves exploration)"
     )
     parser.add_argument(
+        "--cohort-spawn",
+        action="store_true",
+        help="PPO cohort spawning: all envs share the same random start per rollout. "
+             "Gives PPO coherent gradients with random positions. Ignored for SAC."
+    )
+    parser.add_argument(
         "--normalize",
         action="store_true",
         help="Wrap env in VecNormalize for reward normalization (recommended for SAC stability)"
@@ -306,7 +312,8 @@ def resolve_env_config(path_str: Optional[str]) -> Tuple[EnvConfig, str]:
     if path_str:
         return EnvConfig.from_yaml(path_str), path_str
 
-    default_path = Path(__file__).parent.parent / "configs" / "default.yaml"
+    # Try fast_iter_v3_complex_progress_0p5.yaml as the default (simple track, proven config)
+    default_path = Path(__file__).parent.parent / "configs" / "fast_iter_v3_complex_progress_0p5.yaml"
     if default_path.exists():
         return EnvConfig.from_yaml(str(default_path)), str(default_path)
 
@@ -343,6 +350,34 @@ def make_save_vec_normalize_callback(save_path: str, env):
             return True
 
     return SaveVecNormalizeCallback()
+
+
+def make_cohort_spawn_callback(num_checkpoints: int):
+    """Create a callback that synchronizes spawn checkpoints across all envs.
+
+    At the start of each PPO rollout, picks a random checkpoint and sets it
+    on all vectorized envs. This ensures all episodes in a batch start from
+    the same position, giving PPO coherent gradients while still training
+    across all track positions over time.
+    """
+    import random as _random
+    from stable_baselines3.common.callbacks import BaseCallback
+
+    class CohortSpawnCallback(BaseCallback):
+        def __init__(self):
+            super().__init__()
+            self.num_checkpoints = num_checkpoints
+
+        def _on_rollout_start(self):
+            checkpoint = _random.randint(0, self.num_checkpoints - 1)
+            self.training_env.env_method("set_spawn_checkpoint", checkpoint)
+            if self.verbose > 0:
+                self.logger.record("cohort/spawn_checkpoint", checkpoint)
+
+        def _on_step(self):
+            return True
+
+    return CohortSpawnCallback()
 
 
 def build_preset_kwargs(args) -> dict:
@@ -403,11 +438,23 @@ def main():
     log_dir.mkdir(parents=True, exist_ok=True)
     model_dir.mkdir(parents=True, exist_ok=True)
 
+    # Cohort spawn: override random_start for PPO
+    use_cohort_spawn = False
+    if args.cohort_spawn:
+        if args.algo == "sac":
+            print("Warning: --cohort-spawn is ignored for SAC (SAC handles random starts natively)")
+        else:
+            use_cohort_spawn = True
+            # Disable per-env random_start since the callback handles it
+            config.random_start = False
+
     print(f"Training {args.algo.upper()} for {args.total_timesteps} timesteps")
     print(f"Using {args.n_envs} parallel environments")
     print(f"Preset: {args.preset}")
     print(f"Config: {config_source}")
     print(f"Random start: {config.random_start}")
+    if use_cohort_spawn:
+        print(f"Cohort spawn: enabled (synchronized random starts per rollout)")
     print(f"Logs: {log_dir}")
     print(f"Models: {model_dir}")
 
@@ -458,6 +505,11 @@ def main():
             callback_on_new_best=callback_on_new_best,
         )
         callbacks.append(eval_callback)
+    # Add cohort spawn callback for PPO random starts
+    if use_cohort_spawn:
+        cohort_callback = make_cohort_spawn_callback(num_checkpoints=64)
+        callbacks.append(cohort_callback)
+
     callback = None
     if callbacks:
         from stable_baselines3.common.callbacks import CallbackList

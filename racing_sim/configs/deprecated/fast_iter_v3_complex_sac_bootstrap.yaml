@@ -1,3 +1,6 @@
+# UNVALIDATED - DO NOT USE
+# Reason: Claims never validated experimentally. High reward scales (2.0) untested on wavy tracks.
+# Use instead: fast_iter_v3_complex_progress_0p5.yaml (simple track, SAC with --ent-coef auto --gradient-steps 8)
 # =============================================================================
 # SAC SIMPLE TRACK - Best Configuration (FASTER THAN PPO)
 # =============================================================================

@@ -256,3 +256,24 @@ The combined settings catastrophically interfered:
 5. **SAC can't beat PPO on Wavy V2** - use PPO for hard tracks
 6. Future: Try SAC with prioritized experience replay (PER) for stability
 7. Future: Try ensemble critics for SAC stability
+
+---
+
+## Random Starts Breakthrough (January 30, 2026)
+
+**MAJOR UPDATE:** SAC with random starts achieves **183.7 at 90k steps** - very close to 200 target!
+
+### Results
+| Algorithm | Random Start | Best Reward | Steps | Status |
+|-----------|-------------|-------------|-------|---------|
+| PPO baseline | No | 225 | 80k | Stable baseline |
+| PPO + random | Yes | 17.7 | 30k | **Failed** |
+| **SAC + random** | **Yes** | **183.7** | **90k** | **Promising!** |
+
+### Key Insights
+1. Random starts work for SAC, not PPO (SAC: 183.7, PPO: 17.7)
+2. 183.7 is 82% of PPO's 225 - within striking distance of >200 goal
+3. Model saved: `Good Models/SAC Wavy V2 Random Start 183.7 at 90k/`
+4. Training continuing to push past 200
+
+See `Learnings/Random Starts Research - Jan 30 2026.md` for full details.

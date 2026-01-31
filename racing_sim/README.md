@@ -5,8 +5,8 @@
 ## Features
 
 - **Realistic car physics** with lateral friction (tire grip) preventing sideways sliding
-- **5-ray lidar sensor** at [-60, -30, 0, 30, 60] degrees for obstacle detection
-- **Oval track** with inner/outer walls and checkpoint-based progress tracking
+- **9-ray lidar sensor** for obstacle detection (configurable angles and range)
+- **Wavy oval tracks** with inner/outer walls and checkpoint-based progress tracking
 - **Gymnasium-compliant** environment for RL training
 - **PPO and SAC** training with TensorBoard logging
 
@@ -30,17 +30,14 @@ pip install tqdm rich
 ### Train an Agent
 
 ```bash
-# Train with PPO (fast preset, default)
-py scripts/train.py
+# Train with PPO on best config (Wavy V2, progress 0.75)
+py scripts/train.py --algo ppo --preset fast --total-timesteps 50000 \
+  --config configs/wavy_v2_progress_0p75.yaml
 
-# Train with SAC
-py scripts/train.py --algo sac
-
-# Longer run
-py scripts/train.py --preset quality --total-timesteps 500000
-
-# Fast iteration (no eval/checkpoints/tensorboard)
-py scripts/train.py --preset fast --no-eval --no-checkpoint --no-tensorboard
+# Train with SAC on Wavy V2
+py scripts/train.py --algo sac --preset fast --total-timesteps 100000 \
+  --config configs/fast_iter_v3_complex_wavy_v2_progress_0p7.yaml \
+  --learning-rate 0.003 --ent-coef auto --gradient-steps 4
 
 # More options
 py scripts/train.py --help
@@ -60,20 +57,26 @@ tensorboard --logdir logs
 py scripts/play.py
 
 # Visualize a trained model
-py scripts/play.py --model models/ppo_20260121_223632/ppo_final
+py scripts/play.py --model models/ppo_final.zip --config configs/wavy_v2_progress_0p75.yaml
 
-# Run multiple episodes
-py scripts/play.py --model models/ppo_final --episodes 10
+# Run multiple episodes deterministically
+py scripts/play.py --model models/ppo_final.zip --episodes 10 --deterministic
 ```
 
 **Controls:**
 - Arrow keys or WASD: Steer and accelerate
 - ESC: Quit
 
+### Validate (Headless)
+
+```bash
+py scripts/validate.py --model MODEL_PATH --config CONFIG_PATH --episodes 100 --deterministic
+```
+
 ## Environment Details
 
 ### Observation Space
-- `Box(0, 1, shape=(5,))` - 5 normalized lidar distances (0 = hit close, 1 = no hit)
+- `Box(0, 1, shape=(9,))` - 9 normalized lidar distances (0 = hit close, 1 = no hit)
 
 ### Action Space
 - `Box([-1, 0], [1, 1])` - [steering, throttle]
@@ -84,31 +87,21 @@ py scripts/play.py --model models/ppo_final --episodes 10
 | Component | Value | Description |
 |-----------|-------|-------------|
 | Checkpoint | +1.0 | Per checkpoint passed |
-| Speed bonus | +0.1 * (speed/max_speed) | Encourages going fast |
-| Collision | -10.0 | Wall hit (terminates episode) |
-| Time penalty | -0.1 | Per step (encourages efficiency) |
+| Progress bonus | +scale * progress | Per step (scale 0.5-0.75) |
+| Speed bonus | +0.05 * (speed/max_speed) | Encourages going fast |
+| Collision | -20.0 | Wall hit (terminates episode) |
 
 ## Configuration
 
-Edit `configs/default.yaml` (used by default) or create a custom config:
-
-```yaml
-car:
-  max_speed: 1000.0
-  engine_power: 500.0
-  lateral_friction: 0.9
-
-lidar:
-  num_rays: 5
-  ray_angles: [-60.0, -30.0, 0.0, 30.0, 60.0]
-  max_distance: 200.0
-
-max_episode_steps: 1000
-```
+4 proven configs in `configs/`:
+- `fast_iter_v3_complex_progress_0p5.yaml` -- simple ellipse, progress reward 0.5
+- `fast_iter_v3_complex_wavy_v1.yaml` -- wavy track (waves=3, waviness=0.06)
+- `fast_iter_v3_complex_wavy_v2_progress_0p7.yaml` -- harder wavy track (waves=5, waviness=0.08)
+- `wavy_v2_progress_0p75.yaml` -- Wavy V2 optimized (progress 0.75, best PPO config)
 
 Use with:
 ```bash
-py scripts/train.py --config configs/my_config.yaml
+py scripts/train.py --config configs/wavy_v2_progress_0p75.yaml
 ```
 
 ## Project Structure
@@ -125,8 +118,9 @@ racing_sim/
 │   └── rendering/renderer.py # PyGame renderer
 ├── scripts/
 │   ├── train.py              # SB3 training script
-│   └── play.py               # Visualization script
-└── configs/default.yaml      # Default parameters
+│   ├── play.py               # Visualization script
+│   └── validate.py           # Headless validation
+└── configs/                  # 4 proven configs + deprecated/
 ```
 
 ## Dependencies

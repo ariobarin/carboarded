@@ -1,0 +1,52 @@
+# SAC Wavy V2 - Progress 0.75 Optimization
+# Purpose: Increase progress reward from 0.7 to 0.75 to accelerate convergence
+# Based on: fast_iter_v3_complex_wavy_v2_progress_0p7.yaml
+# Change: progress_reward_scale: 0.75
+
+car:
+  mass: 1.0
+  width: 40.0
+  height: 20.0
+  max_speed: 1000.0
+  engine_power: 500.0
+  lateral_friction: 0.5
+  rolling_friction: 0.05
+  angular_damping: 0.7
+  steering_power: 750.0
+
+lidar:
+  num_rays: 9
+  ray_angles: [-90.0, -67.5, -45.0, -22.5, 0.0, 22.5, 45.0, 67.5, 90.0]
+  max_distance: 400.0
+
+track:
+  width: 100.0
+  outer_radius_x: 350.0
+  outer_radius_y: 250.0
+  center_x: 400.0
+  center_y: 300.0
+  waviness: 0.08
+  waves: 5
+  wave_phase: 0.0
+
+render:
+  screen_width: 800
+  screen_height: 600
+  fps: 60
+  show_lidar: true
+  car_color: [0, 100, 255]
+  wall_color: [100, 100, 100]
+  lidar_clear_color: [0, 255, 0]
+  lidar_hit_color: [255, 0, 0]
+  background_color: [30, 30, 30]
+
+physics_dt: 0.016666666666666666
+max_episode_steps: 2000
+
+checkpoint_reward: 1.0
+speed_bonus_scale: 0.05
+progress_reward_scale: 0.75  # OPTIMIZED: increased from 0.7
+slowdown_distance: 0.0
+slowdown_penalty_scale: 0.0
+collision_penalty: -20.0
+time_penalty: -0.0

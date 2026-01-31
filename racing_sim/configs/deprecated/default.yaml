@@ -1,3 +1,6 @@
+# DEPRECATED - DO NOT USE
+# Reason: Slowdown penalty and time penalty hurt convergence. Superseded by optimized configs.
+# Use instead: fast_iter_v3_complex_progress_0p5.yaml (simple track)
 # =============================================================================
 # DEFAULT CONFIGURATION - Baseline Reference
 # =============================================================================

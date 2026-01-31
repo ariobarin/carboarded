@@ -71,6 +71,11 @@ def parse_args():
         action="store_true",
         help="Race against a trained model (requires --model)",
     )
+    parser.add_argument(
+        "--show-grid",
+        action="store_true",
+        help="Show 10x10 CNN grid visualization in front of car",
+    )
 
     return parser.parse_args()
 
@@ -363,6 +368,10 @@ def main():
 
     # Disable random start for play/race modes
     config.random_start = False
+
+    # Enable grid visualization if requested
+    if args.show_grid:
+        config.render.show_grid = True
 
     # Create environment with rendering
     env = RacingEnv(config=config, render_mode="human")

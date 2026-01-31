@@ -48,11 +48,17 @@ class RenderConfig:
     screen_height: int = 600
     fps: int = 60
     show_lidar: bool = True
+    show_grid: bool = False
+    grid_size: int = 10
+    grid_cell_size: float = 20.0
+    grid_samples: int = 3
     car_color: tuple = (0, 100, 255)
     wall_color: tuple = (100, 100, 100)
     lidar_clear_color: tuple = (0, 255, 0)
     lidar_hit_color: tuple = (255, 0, 0)
     background_color: tuple = (30, 30, 30)
+    grid_on_color: tuple = (0, 200, 0)
+    grid_off_color: tuple = (200, 0, 0)
 
 
 @dataclass

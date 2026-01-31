@@ -84,6 +84,10 @@ class Renderer:
         if self.config.show_lidar and lidar is not None:
             self._render_lidar(lidar)
 
+        # Render CNN grid if enabled
+        if self.config.show_grid:
+            self._render_grid(car, track)
+
         # Render car
         self._render_car(car)
 
@@ -159,6 +163,76 @@ class Renderer:
             # Draw hit point
             if distance < 1.0:
                 pygame.draw.circle(self.screen, (255, 255, 0), end_screen, 4)
+
+    def _render_grid(self, car: Car, track: Track):
+        """
+        Render a 10x10 grid in front of the car for CNN visualization.
+
+        The grid shows track occupancy values:
+        - Green = on track (1.0)
+        - Red = off track (0.0)
+        - Interpolated colors for boundary cells (anti-aliased)
+        """
+        grid_size = self.config.grid_size
+        cell_size = self.config.grid_cell_size
+        samples = self.config.grid_samples
+
+        # Forward and left vectors relative to car
+        forward = Vec2d(math.cos(car.angle), math.sin(car.angle))
+        left = Vec2d(-forward.y, forward.x)
+
+        for i in range(grid_size):
+            for j in range(grid_size):
+                # Offset from car center
+                # i=0 is closest to car, i=9 is farthest forward
+                # j=0 is far left, j=9 is far right (j=4.5 is center)
+                forward_offset = 60.0 + (i + 1) * cell_size
+                lateral_offset = (j - (grid_size - 1) / 2) * cell_size
+
+                world_pos = (
+                    car.position + forward * forward_offset + left * lateral_offset
+                )
+
+                # Anti-aliased sampling: check multiple points in each cell
+                on_track_count = 0
+                sample_offset = cell_size / (samples + 1)
+
+                for si in range(samples):
+                    for sj in range(samples):
+                        sample_offset_fwd = (si - (samples - 1) / 2) * sample_offset
+                        sample_offset_lat = (sj - (samples - 1) / 2) * sample_offset
+                        sample_pos = (
+                            world_pos
+                            + forward * sample_offset_fwd
+                            + left * sample_offset_lat
+                        )
+                        if track.is_on_track(sample_pos):
+                            on_track_count += 1
+
+                # Compute occupancy value (0.0 to 1.0)
+                occupancy = on_track_count / (samples * samples)
+
+                # Interpolate color between off-track (red) and on-track (green)
+                r = int(
+                    self.config.grid_off_color[0] * (1 - occupancy)
+                    + self.config.grid_on_color[0] * occupancy
+                )
+                g = int(
+                    self.config.grid_off_color[1] * (1 - occupancy)
+                    + self.config.grid_on_color[1] * occupancy
+                )
+                b = int(
+                    self.config.grid_off_color[2] * (1 - occupancy)
+                    + self.config.grid_on_color[2] * occupancy
+                )
+                color = (r, g, b)
+
+                # Draw cell as filled circle
+                screen_pos = self._to_screen(world_pos)
+                pygame.draw.circle(self.screen, color, screen_pos, 4)
+
+                # Draw outline for visibility
+                pygame.draw.circle(self.screen, (255, 255, 255), screen_pos, 4, 1)
 
     def _render_hud(self, info: dict, car: Car):
         """Render heads-up display with stats."""

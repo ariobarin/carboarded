@@ -80,6 +80,10 @@ class RacingEnv(gym.Env):
         self.last_progress_angle = 0.0
         self.last_observation: Optional[np.ndarray] = None
 
+        # Cohort spawn: when set, reset() spawns at this checkpoint
+        # instead of random. Used by CohortSpawnCallback for PPO.
+        self.spawn_checkpoint: Optional[int] = None
+
         # Initialize components
         self._setup()
 
@@ -125,7 +129,10 @@ class RacingEnv(gym.Env):
         super().reset(seed=seed)
 
         # Determine starting position
-        if self.config.random_start:
+        if self.spawn_checkpoint is not None:
+            # Cohort spawn: all envs use the same checkpoint per rollout
+            start_pos, start_angle = self.track.get_spawn_position(self.spawn_checkpoint)
+        elif self.config.random_start:
             # Pick a random checkpoint and spawn there
             checkpoint_idx = self.np_random.integers(0, self.track.num_checkpoints)
             start_pos, start_angle = self.track.get_spawn_position(checkpoint_idx)
@@ -259,6 +266,14 @@ class RacingEnv(gym.Env):
             "episode_reward": self.episode_reward,
             "collided": self.car.collided,
         }
+
+    def set_spawn_checkpoint(self, checkpoint: Optional[int]) -> None:
+        """Set the spawn checkpoint for cohort spawning.
+
+        Args:
+            checkpoint: Checkpoint index to spawn at, or None to disable.
+        """
+        self.spawn_checkpoint = checkpoint
 
     def render(self) -> Optional[np.ndarray]:
         """Render the current state."""

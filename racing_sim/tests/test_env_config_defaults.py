@@ -14,7 +14,8 @@ def load_env_config():
 
 def test_env_config_defaults_match_default_yaml():
     repo_root = Path(__file__).resolve().parents[1]
-    yaml_path = repo_root / "configs" / "default.yaml"
+    # default.yaml moved to deprecated/ but still used as baseline for EnvConfig() defaults
+    yaml_path = repo_root / "configs" / "deprecated" / "default.yaml"
     EnvConfig = load_env_config()
     file_config = EnvConfig.from_yaml(str(yaml_path))
     default_config = EnvConfig()
