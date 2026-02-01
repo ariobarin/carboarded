@@ -11,6 +11,7 @@ from racing_sim.physics.car import Car
 from racing_sim.physics.track import Track
 from racing_sim.sensors.lidar import Lidar
 from racing_sim.rendering.renderer import Renderer
+from racing_sim.sensors.grid import compute_grid
 from racing_sim.utils.progress import progress_delta
 from racing_sim.utils.reward import compute_slowdown_penalty
 
@@ -48,13 +49,22 @@ class RacingEnv(gym.Env):
         self.config = config or EnvConfig()
         self.render_mode = render_mode
 
-        # Observation space: 5 lidar rays, normalized to [0, 1]
-        self.observation_space = spaces.Box(
-            low=0.0,
-            high=1.0,
-            shape=(self.config.lidar.num_rays,),
-            dtype=np.float32
-        )
+        # Observation space depends on obs_type
+        if self.config.obs_type == "grid":
+            gs = self.config.grid.grid_size
+            self.observation_space = spaces.Box(
+                low=0,
+                high=255,
+                shape=(gs, gs, 1),
+                dtype=np.uint8,
+            )
+        else:
+            self.observation_space = spaces.Box(
+                low=0.0,
+                high=1.0,
+                shape=(self.config.lidar.num_rays,),
+                dtype=np.float32,
+            )
 
         # Action space: [steering, throttle]
         # steering: -1 (left) to 1 (right)
@@ -154,9 +164,17 @@ class RacingEnv(gym.Env):
         self.episode_reward = 0.0
         self.last_progress_angle = self._get_progress_angle(self.car.position)
 
-        # Get initial observation
-        observation = self.lidar.scan(self.car)
-        self.last_observation = observation
+        # Get initial observation (always run lidar for reward computation)
+        lidar_obs = self.lidar.scan(self.car)
+        self.last_observation = lidar_obs
+
+        if self.config.obs_type == "grid":
+            grid = compute_grid(
+                self.car.position, self.car.angle, self.track, self.config.grid,
+            )
+            observation = grid[:, :, np.newaxis]
+        else:
+            observation = lidar_obs
 
         info = self._get_info()
 
@@ -183,9 +201,9 @@ class RacingEnv(gym.Env):
         # Step physics
         self.space.step(self.config.physics_dt)
 
-        # Get lidar observation
-        observation = self.lidar.scan(self.car)
-        self.last_observation = observation
+        # Always run lidar (needed for reward computation)
+        lidar_obs = self.lidar.scan(self.car)
+        self.last_observation = lidar_obs
 
         # Calculate reward
         reward = self._calculate_reward()
@@ -197,6 +215,15 @@ class RacingEnv(gym.Env):
         # Check termination conditions
         terminated = self.car.collided
         truncated = self.current_step >= self.config.max_episode_steps
+
+        # Build observation for the agent
+        if self.config.obs_type == "grid":
+            grid = compute_grid(
+                self.car.position, self.car.angle, self.track, self.config.grid,
+            )
+            observation = grid[:, :, np.newaxis]
+        else:
+            observation = lidar_obs
 
         info = self._get_info()
 

@@ -72,9 +72,20 @@ def parse_args():
         help="Race against a trained model (requires --model)",
     )
     parser.add_argument(
+        "--cnn",
+        action="store_true",
+        help="Use CNN grid observations (required when loading a CNN-trained model)",
+    )
+    parser.add_argument(
         "--show-grid",
         action="store_true",
-        help="Show 10x10 CNN grid visualization in front of car",
+        help="Enable grid visualization overlay at startup",
+    )
+    parser.add_argument(
+        "--fps",
+        type=int,
+        default=None,
+        help="Override render FPS (default: 60)",
     )
 
     return parser.parse_args()
@@ -85,6 +96,8 @@ def run_human_control(env: RacingEnv, num_episodes: int):
     print("\nControls:")
     print("  Arrow keys or WASD: Steer and accelerate")
     print("  R: Reset race")
+    print("  L: Toggle lidar visualization")
+    print("  G: Toggle grid visualization")
     print("  ESC: Quit")
     print()
 
@@ -198,6 +211,8 @@ def run_race_mode(env: RacingEnv, model, deterministic: bool = True):
     print("\nRace Mode (Debug)")
     print("Controls: Arrow keys or WASD to drive")
     print("R: Reset race")
+    print("L: Toggle lidar visualization (AI only)")
+    print("G: Toggle grid visualization (AI only)")
     print("Blue = You, Red = AI")
     print("ESC to quit.\n")
 
@@ -329,7 +344,13 @@ def run_race_mode(env: RacingEnv, model, deterministic: bool = True):
         env.renderer.screen.fill(env.renderer.config.background_color)
         env.renderer._render_track(env.track)
         env.renderer._render_checkpoints(env.track)
-        env.renderer._render_lidar(ai_lidar)  # Show AI's lidar
+        if env.renderer._show_lidar:
+            env.renderer._render_lidar(ai_lidar)  # Show AI's lidar
+        if env.renderer._show_grid:
+            if env.renderer._grid_debug_mode:
+                env.renderer._render_grid_worldspace(ai_car, env.track)
+            else:
+                env.renderer._render_grid_overlay(ai_car, env.track)
         env.renderer._render_car(env.car, color=(100, 150, 255))  # Blue for human
         env.renderer._render_car(ai_car, color=(255, 100, 100))  # Red for AI
 
@@ -369,9 +390,17 @@ def main():
     # Disable random start for play/race modes
     config.random_start = False
 
+    # Enable CNN grid observations if requested
+    if args.cnn:
+        config.obs_type = "grid"
+
     # Enable grid visualization if requested
-    if args.show_grid:
+    if args.show_grid or args.cnn:
         config.render.show_grid = True
+
+    # Override FPS if requested
+    if args.fps is not None:
+        config.render.fps = args.fps
 
     # Create environment with rendering
     env = RacingEnv(config=config, render_mode="human")

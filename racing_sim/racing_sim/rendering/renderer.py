@@ -5,10 +5,11 @@ import numpy as np
 import math
 from typing import Optional, List, Tuple
 from pymunk import Vec2d
-from racing_sim.config.config import RenderConfig
+from racing_sim.config.config import RenderConfig, GridConfig
 from racing_sim.physics.car import Car
 from racing_sim.physics.track import Track
 from racing_sim.sensors.lidar import Lidar
+from racing_sim.sensors.grid import compute_grid, compute_grid_positions
 
 
 class Renderer:
@@ -28,6 +29,12 @@ class Renderer:
         self.clock: Optional[pygame.time.Clock] = None
         self._initialized = False
         self._reset_requested = False
+        self._show_lidar = config.show_lidar
+        self._show_grid = config.show_grid
+        self._grid_debug_mode = False  # False = fast overlay, True = world-space circles
+        # Cached fonts (initialized in _init_pygame)
+        self._font_small: Optional[pygame.font.Font] = None
+        self._font_hud: Optional[pygame.font.Font] = None
 
     def _init_pygame(self):
         """Initialize PyGame (deferred until first render)."""
@@ -37,8 +44,10 @@ class Renderer:
         pygame.init()
 
         if self.render_mode == "human":
+            # Use DOUBLEBUF for smoother rendering
             self.screen = pygame.display.set_mode(
-                (self.config.screen_width, self.config.screen_height)
+                (self.config.screen_width, self.config.screen_height),
+                pygame.DOUBLEBUF
             )
             pygame.display.set_caption("Racing Simulation")
             self.clock = pygame.time.Clock()
@@ -47,6 +56,10 @@ class Renderer:
             self.screen = pygame.Surface(
                 (self.config.screen_width, self.config.screen_height)
             )
+
+        # Cache fonts for faster rendering
+        self._font_small = pygame.font.Font(None, 20)
+        self._font_hud = pygame.font.Font(None, 24)
 
         self._initialized = True
 
@@ -81,12 +94,15 @@ class Renderer:
         self._render_checkpoints(track)
 
         # Render lidar rays if enabled
-        if self.config.show_lidar and lidar is not None:
+        if self._show_lidar and lidar is not None:
             self._render_lidar(lidar)
 
         # Render CNN grid if enabled
-        if self.config.show_grid:
-            self._render_grid(car, track)
+        if self._show_grid:
+            if self._grid_debug_mode:
+                self._render_grid_worldspace(car, track)  # Slow but shows positions
+            else:
+                self._render_grid_overlay(car, track)  # Fast corner overlay
 
         # Render car
         self._render_car(car)
@@ -164,80 +180,67 @@ class Renderer:
             if distance < 1.0:
                 pygame.draw.circle(self.screen, (255, 255, 0), end_screen, 4)
 
-    def _render_grid(self, car: Car, track: Track):
+    def _render_grid_overlay(self, car: Car, track: Track,
+                              grid_config: Optional[GridConfig] = None):
+        """Render grid as efficient overlay in corner of screen.
+
+        Uses pygame.surfarray for fast numpy->surface conversion.
+        ~2,592 draw calls -> 1 blit call.
+
+        Args:
+            car: Car whose grid to visualize.
+            track: Track for occupancy checks.
+            grid_config: Grid sensor config. Uses default GridConfig if None.
         """
-        Render a 10x10 grid in front of the car for CNN visualization.
+        if grid_config is None:
+            grid_config = GridConfig()
 
-        The grid shows track occupancy values:
-        - Green = on track (1.0)
-        - Red = off track (0.0)
-        - Interpolated colors for boundary cells (anti-aliased)
+        grid = compute_grid(car.position, car.angle, track, grid_config)
+
+        # Create RGB array from binary grid (e.g., 36x36 -> 36x36x3)
+        rgb = np.zeros((grid.shape[0], grid.shape[1], 3), dtype=np.uint8)
+        on_mask = grid > 0
+        rgb[on_mask] = self.config.grid_on_color
+        rgb[~on_mask] = self.config.grid_off_color
+
+        # Create surface (swapaxes for pygame's column-major format)
+        # Use convert() for faster blitting (matches display format)
+        grid_surface = pygame.surfarray.make_surface(rgb.swapaxes(0, 1)).convert()
+        scaled = pygame.transform.scale(grid_surface, (144, 144))  # 4x scale
+
+        # Blit to top-right corner with border
+        pos = (self.config.screen_width - 154, 10)
+        pygame.draw.rect(self.screen, (255, 255, 255), (*pos, 148, 148), 2)
+        self.screen.blit(scaled, (pos[0] + 2, pos[1] + 2))
+
+    def _render_grid_worldspace(self, car: Car, track: Track,
+                                 grid_config: Optional[GridConfig] = None):
+        """Render grid as circles in world space (slow, for debugging).
+
+        Uses compute_grid/compute_grid_positions from sensors.grid so the
+        visualization matches exactly what the CNN agent observes.
+
+        Args:
+            car: Car whose grid to visualize.
+            track: Track for occupancy checks.
+            grid_config: Grid sensor config. Uses default GridConfig if None.
         """
-        grid_size = self.config.grid_size
-        cell_size = self.config.grid_cell_size
-        samples = self.config.grid_samples
+        if grid_config is None:
+            grid_config = GridConfig()
 
-        # Forward and left vectors relative to car
-        forward = Vec2d(math.cos(car.angle), math.sin(car.angle))
-        left = Vec2d(-forward.y, forward.x)
+        grid = compute_grid(car.position, car.angle, track, grid_config)
+        positions = compute_grid_positions(car.position, car.angle, grid_config)
 
-        for i in range(grid_size):
-            for j in range(grid_size):
-                # Offset from car center
-                # i=0 is closest to car, i=9 is farthest forward
-                # j=0 is far left, j=9 is far right (j=4.5 is center)
-                forward_offset = 60.0 + (i + 1) * cell_size
-                lateral_offset = (j - (grid_size - 1) / 2) * cell_size
+        for row, col, world_pos in positions:
+            on_track = grid[row, col] > 0
+            color = self.config.grid_on_color if on_track else self.config.grid_off_color
 
-                world_pos = (
-                    car.position + forward * forward_offset + left * lateral_offset
-                )
-
-                # Anti-aliased sampling: check multiple points in each cell
-                on_track_count = 0
-                sample_offset = cell_size / (samples + 1)
-
-                for si in range(samples):
-                    for sj in range(samples):
-                        sample_offset_fwd = (si - (samples - 1) / 2) * sample_offset
-                        sample_offset_lat = (sj - (samples - 1) / 2) * sample_offset
-                        sample_pos = (
-                            world_pos
-                            + forward * sample_offset_fwd
-                            + left * sample_offset_lat
-                        )
-                        if track.is_on_track(sample_pos):
-                            on_track_count += 1
-
-                # Compute occupancy value (0.0 to 1.0)
-                occupancy = on_track_count / (samples * samples)
-
-                # Interpolate color between off-track (red) and on-track (green)
-                r = int(
-                    self.config.grid_off_color[0] * (1 - occupancy)
-                    + self.config.grid_on_color[0] * occupancy
-                )
-                g = int(
-                    self.config.grid_off_color[1] * (1 - occupancy)
-                    + self.config.grid_on_color[1] * occupancy
-                )
-                b = int(
-                    self.config.grid_off_color[2] * (1 - occupancy)
-                    + self.config.grid_on_color[2] * occupancy
-                )
-                color = (r, g, b)
-
-                # Draw cell as filled circle
-                screen_pos = self._to_screen(world_pos)
-                pygame.draw.circle(self.screen, color, screen_pos, 4)
-
-                # Draw outline for visibility
-                pygame.draw.circle(self.screen, (255, 255, 255), screen_pos, 4, 1)
+            screen_pos = self._to_screen(world_pos)
+            # Single circle per cell (removed white outline for minor speedup)
+            pygame.draw.circle(self.screen, color, screen_pos, 4)
 
     def _render_hud(self, info: dict, car: Car):
         """Render heads-up display with stats."""
-        font = pygame.font.Font(None, 24)
-
         y_offset = 10
         texts = [
             f"Speed: {car.speed:.1f}",
@@ -247,7 +250,7 @@ class Renderer:
         ]
 
         for text in texts:
-            surface = font.render(text, True, (255, 255, 255))
+            surface = self._font_hud.render(text, True, (255, 255, 255))
             self.screen.blit(surface, (10, y_offset))
             y_offset += 20
 
@@ -264,6 +267,8 @@ class Renderer:
             self._initialized = False
             self.screen = None
             self.clock = None
+            self._font_small = None
+            self._font_hud = None
 
     def handle_events(self) -> bool:
         """
@@ -280,6 +285,12 @@ class Renderer:
                     return False
                 if event.key == pygame.K_r:
                     self._reset_requested = True
+                if event.key == pygame.K_l:
+                    self._show_lidar = not self._show_lidar
+                if event.key == pygame.K_g:
+                    self._show_grid = not self._show_grid
+                if event.key == pygame.K_v:
+                    self._grid_debug_mode = not self._grid_debug_mode
         return True
 
     def get_keyboard_input(self) -> Tuple[float, float]:

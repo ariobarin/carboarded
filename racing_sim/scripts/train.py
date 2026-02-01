@@ -177,6 +177,13 @@ def build_arg_parser() -> argparse.ArgumentParser:
         help="Override preset learning rate"
     )
     parser.add_argument(
+        "--lr-schedule",
+        type=str,
+        default=None,
+        choices=["linear", "cosine"],
+        help="LR schedule: linear decay to 10%% of initial, cosine decay to 10%% of initial"
+    )
+    parser.add_argument(
         "--clip-range",
         type=float,
         default=None,
@@ -284,6 +291,11 @@ def build_arg_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Wrap env in VecNormalize for reward normalization (recommended for SAC stability)"
     )
+    parser.add_argument(
+        "--cnn",
+        action="store_true",
+        help="Use CNN policy with occupancy grid observations (sets obs_type='grid', uses CnnPolicy)"
+    )
 
     return parser
 
@@ -380,11 +392,41 @@ def make_cohort_spawn_callback(num_checkpoints: int):
     return CohortSpawnCallback()
 
 
+def make_lr_schedule(initial_lr: float, schedule_type: str):
+    """Create a learning rate schedule callable for SB3.
+
+    Args:
+        initial_lr: Starting learning rate.
+        schedule_type: 'linear' or 'cosine'. Both decay to 10% of initial.
+
+    Returns:
+        Callable that takes progress_remaining (1.0 -> 0.0) and returns LR.
+    """
+    import math as _math
+    min_lr = initial_lr * 0.1
+
+    if schedule_type == "linear":
+        def schedule(progress_remaining: float) -> float:
+            return min_lr + (initial_lr - min_lr) * progress_remaining
+        return schedule
+    elif schedule_type == "cosine":
+        def schedule(progress_remaining: float) -> float:
+            return min_lr + (initial_lr - min_lr) * 0.5 * (1 + _math.cos(_math.pi * (1 - progress_remaining)))
+        return schedule
+    else:
+        raise ValueError(f"Unknown schedule type: {schedule_type}")
+
+
 def build_preset_kwargs(args) -> dict:
     """Build preset kwargs with CLI overrides applied."""
     preset_kwargs = PRESETS[args.algo][args.preset].copy()
     if args.learning_rate is not None:
         preset_kwargs["learning_rate"] = args.learning_rate
+    if args.lr_schedule is not None:
+        base_lr = preset_kwargs.get("learning_rate", 3e-4)
+        if not isinstance(base_lr, (int, float)):
+            base_lr = 3e-4
+        preset_kwargs["learning_rate"] = make_lr_schedule(float(base_lr), args.lr_schedule)
     if args.clip_range is not None and args.algo == "ppo":
         preset_kwargs["clip_range"] = args.clip_range
     if args.gamma is not None:
@@ -427,6 +469,8 @@ def main():
     # Apply CLI overrides to config
     if args.random_start:
         config.random_start = True
+    if args.cnn:
+        config.obs_type = "grid"
 
     # Create directories
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -452,6 +496,7 @@ def main():
     print(f"Using {args.n_envs} parallel environments")
     print(f"Preset: {args.preset}")
     print(f"Config: {config_source}")
+    print(f"Obs type: {config.obs_type}")
     print(f"Random start: {config.random_start}")
     if use_cohort_spawn:
         print(f"Cohort spawn: enabled (synchronized random starts per rollout)")
@@ -475,6 +520,10 @@ def main():
         # If training env uses VecNormalize, eval env must also be wrapped for compatibility
         if args.normalize:
             eval_env = VecNormalize(eval_env, norm_obs=False, norm_reward=True, clip_reward=10.0, gamma=0.99, training=False)
+        # If using CNN (image obs), wrap eval env in VecTransposeImage to match training env
+        if config.obs_type == "grid":
+            from stable_baselines3.common.vec_env import VecTransposeImage
+            eval_env = VecTransposeImage(eval_env)
 
     # Create callbacks
     callbacks = []
@@ -519,12 +568,13 @@ def main():
     # Create model
     tensorboard_log = None if args.no_tensorboard else str(log_dir)
     preset_kwargs = build_preset_kwargs(args)
+    policy = "CnnPolicy" if config.obs_type == "grid" else "MlpPolicy"
 
     if args.algo == "ppo":
         from stable_baselines3 import PPO
 
         model = PPO(
-            policy="MlpPolicy",
+            policy=policy,
             env=env,
             **preset_kwargs,
             verbose=1,
@@ -536,7 +586,7 @@ def main():
         from stable_baselines3 import SAC
 
         model = SAC(
-            policy="MlpPolicy",
+            policy=policy,
             env=env,
             **preset_kwargs,
             verbose=1,

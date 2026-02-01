@@ -3,7 +3,8 @@
 import pymunk
 from pymunk import Vec2d
 import math
-from typing import List, Tuple
+import numpy as np
+from typing import List, Tuple, Optional
 from racing_sim.config.config import TrackConfig
 from racing_sim.physics.car import CATEGORY_WALL
 
@@ -49,6 +50,7 @@ class Track:
 
         self._create_walls()
         self._create_checkpoints()
+        self._create_bitmap()
 
     def _radius_scale(self, angle: float) -> float:
         if self.waviness <= 0.0 or self.waves <= 0:
@@ -197,6 +199,109 @@ class Track:
         normalized_inner = (delta.x / inner_rx) ** 2 + (delta.y / inner_ry) ** 2
 
         return normalized_inner >= 1.0 and normalized_outer <= 1.0
+
+    def _create_bitmap(self, resolution: float = 1.0):
+        """Precompute track occupancy bitmap for fast lookups.
+
+        Args:
+            resolution: Pixels per world unit. Higher = more accurate but more memory.
+        """
+        # Compute bounding box with padding
+        max_radius = max(self.base_outer_radius_x, self.base_outer_radius_y)
+        if self.waviness > 0:
+            max_radius *= (1.0 + self.waviness)  # Account for wavy expansion
+
+        padding = 50  # Extra padding around track
+        self._bitmap_min_x = self.center.x - max_radius - padding
+        self._bitmap_max_x = self.center.x + max_radius + padding
+        self._bitmap_min_y = self.center.y - max_radius - padding
+        self._bitmap_max_y = self.center.y + max_radius + padding
+        self._bitmap_resolution = resolution
+
+        # Compute bitmap dimensions
+        width = int((self._bitmap_max_x - self._bitmap_min_x) * resolution)
+        height = int((self._bitmap_max_y - self._bitmap_min_y) * resolution)
+
+        # Create bitmap using vectorized is_on_track logic
+        # Generate grid of world coordinates
+        x_coords = np.linspace(self._bitmap_min_x, self._bitmap_max_x, width)
+        y_coords = np.linspace(self._bitmap_min_y, self._bitmap_max_y, height)
+        xx, yy = np.meshgrid(x_coords, y_coords)
+
+        # Vectorized is_on_track calculation
+        dx = xx - self.center.x
+        dy = yy - self.center.y
+
+        angles = np.arctan2(dy, dx)
+        angles = np.where(angles < 0, angles + 2 * np.pi, angles)
+
+        # Compute radii at each angle (vectorized)
+        if self.waviness > 0 and self.waves > 0:
+            scale = 1.0 + self.waviness * np.sin(self.waves * angles + self.wave_phase)
+            scale = np.maximum(0.2, scale)
+        else:
+            scale = 1.0
+
+        outer_rx = self.base_outer_radius_x * scale
+        outer_ry = self.base_outer_radius_y * scale
+        inner_rx = self.base_inner_radius_x * scale
+        inner_ry = self.base_inner_radius_y * scale
+
+        # Normalized distances
+        normalized_outer = (dx / outer_rx) ** 2 + (dy / outer_ry) ** 2
+        normalized_inner = (dx / inner_rx) ** 2 + (dy / inner_ry) ** 2
+
+        # On track if between inner and outer ellipse
+        self._track_bitmap = ((normalized_inner >= 1.0) & (normalized_outer <= 1.0)).astype(np.uint8)
+
+    def is_on_track_fast(self, position: Vec2d) -> bool:
+        """Fast track check using precomputed bitmap.
+
+        Args:
+            position: Position to check
+
+        Returns:
+            True if position is on track
+        """
+        # Convert world position to bitmap coordinates
+        bx = int((position.x - self._bitmap_min_x) * self._bitmap_resolution)
+        by = int((position.y - self._bitmap_min_y) * self._bitmap_resolution)
+
+        # Bounds check
+        if bx < 0 or bx >= self._track_bitmap.shape[1]:
+            return False
+        if by < 0 or by >= self._track_bitmap.shape[0]:
+            return False
+
+        return self._track_bitmap[by, bx] > 0
+
+    def is_on_track_batch(self, world_x: np.ndarray, world_y: np.ndarray) -> np.ndarray:
+        """Batch track check using precomputed bitmap.
+
+        Args:
+            world_x: Array of x coordinates
+            world_y: Array of y coordinates
+
+        Returns:
+            Boolean array, True where positions are on track
+        """
+        # Convert world positions to bitmap coordinates
+        bx = ((world_x - self._bitmap_min_x) * self._bitmap_resolution).astype(np.int32)
+        by = ((world_y - self._bitmap_min_y) * self._bitmap_resolution).astype(np.int32)
+
+        # Bounds check
+        h, w = self._track_bitmap.shape
+        valid = (bx >= 0) & (bx < w) & (by >= 0) & (by < h)
+
+        # Clip to valid range for lookup (invalid positions will be masked out)
+        bx_safe = np.clip(bx, 0, w - 1)
+        by_safe = np.clip(by, 0, h - 1)
+
+        # Lookup and mask invalid positions
+        result = self._track_bitmap[by_safe, bx_safe] > 0
+        result = result & valid
+
+        return result
 
     def get_all_wall_segments(self) -> List[Tuple[Vec2d, Vec2d]]:
         """Get all wall segments as point pairs for rendering."""

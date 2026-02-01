@@ -90,6 +90,17 @@ When a model is superseded, move it to `Good Models/_archived/` and set its READ
 
 ---
 
+## Pre-Training Guardrails
+
+Before starting any training run:
+- **Manual-play the current config** before training to verify the sim feels correct.
+- **Log and inspect action stats** (mean/variance of steering + throttle) early in training.
+- **Compare apples-to-apples:** same config, reward scale, episode length across runs.
+- **One active config path** per run; print it in logs and reports.
+- **Keep a baseline PPO run** for each track revision to anchor progress.
+
+---
+
 ## DO / DON'T Quick Reference
 
 DO:

@@ -1,7 +1,7 @@
 """Configuration dataclasses for the racing simulation."""
 
 from dataclasses import dataclass, field
-from typing import List
+from typing import List, Optional
 import yaml
 from pathlib import Path
 
@@ -42,6 +42,22 @@ class TrackConfig:
 
 
 @dataclass
+class GridConfig:
+    """Grid sensor configuration for CNN observations.
+
+    Uses perspective (homographic) projection to simulate a camera mounted on
+    the car looking down at the ground. This creates a trapezoidal sampling
+    pattern: narrow at far distances, wide at near distances.
+    """
+    grid_size: int = 36           # NxN grid (minimum for NatureCNN)
+    camera_height: float = 50.0   # Height above ground (world units)
+    camera_pitch: float = 45.0    # Downward tilt from horizontal (degrees)
+    fov_horizontal: float = 60.0  # Horizontal field of view (degrees)
+    near_distance: float = 30.0   # Min visible distance ahead of car
+    far_distance: float = 200.0   # Max visible distance ahead of car
+
+
+@dataclass
 class RenderConfig:
     """Rendering configuration."""
     screen_width: int = 800
@@ -67,9 +83,13 @@ class EnvConfig:
     car: CarConfig = field(default_factory=CarConfig)
     lidar: LidarConfig = field(default_factory=LidarConfig)
     track: TrackConfig = field(default_factory=TrackConfig)
+    grid: GridConfig = field(default_factory=GridConfig)
     render: RenderConfig = field(default_factory=RenderConfig)
     physics_dt: float = 1.0 / 60.0
     max_episode_steps: int = 1000
+
+    # Observation type: "lidar" (default MLP) or "grid" (CNN occupancy grid)
+    obs_type: str = "lidar"
 
     # Reward configuration
     checkpoint_reward: float = 1.0
@@ -97,6 +117,10 @@ class EnvConfig:
             config.lidar = LidarConfig(**data["lidar"])
         if "track" in data:
             config.track = TrackConfig(**data["track"])
+        if "grid" in data:
+            config.grid = GridConfig(**data["grid"])
+        if "obs_type" in data:
+            config.obs_type = data["obs_type"]
         if "render" in data:
             # Convert color lists to tuples
             render_data = data["render"]
@@ -157,6 +181,15 @@ class EnvConfig:
                 "waves": self.track.waves,
                 "wave_phase": self.track.wave_phase,
             },
+            "grid": {
+                "grid_size": self.grid.grid_size,
+                "camera_height": self.grid.camera_height,
+                "camera_pitch": self.grid.camera_pitch,
+                "fov_horizontal": self.grid.fov_horizontal,
+                "near_distance": self.grid.near_distance,
+                "far_distance": self.grid.far_distance,
+            },
+            "obs_type": self.obs_type,
             "render": {
                 "screen_width": self.render.screen_width,
                 "screen_height": self.render.screen_height,

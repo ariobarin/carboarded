@@ -1,61 +1,74 @@
 # Racing RL Project
 
-## Three-Phase Roadmap
-**Phase 1 (COMPLETE):** Build a simple, learnable simulation and prove PPO/SAC can train reliably with LIDAR-style inputs. PPO achieved 226.49 reward on the hardest track (Wavy V2). SAC achieved 183.7 with random starts.
+2D autonomous racing simulation using Gymnasium, Pymunk physics, and Stable-Baselines3 for training PPO/SAC agents.
 
-**Phase 2 (planned):** Increase realism with a vision-based policy. Replace raw LIDAR inputs with a processed camera feed (track lines in a bird's-eye view) and train a convolutional model.
+## Results
 
-**Phase 3 (planned):** Transfer to a real race car with camera + IMU. The camera feed will be homography-warped to bird's-eye view, with steering and throttle control mapped to the physical vehicle.
+| Phase | Algorithm | Track | Obs Type | Best Reward | Steps |
+|-------|-----------|-------|----------|-------------|-------|
+| 2 | PPO+CNN | Wavy V2 | Grid (36x36) | **249.43** | 220k |
+| 1 | PPO | Wavy V2 | Lidar (9-ray) | **247.26** | 220k |
+| 1 | PPO | Wavy V1 | Lidar | **237.57** | 80k |
+| 1 | PPO | Simple | Lidar | **252.49** | 80k |
+| 1 | SAC | Wavy V1 | Lidar | 209.09 | 40k |
+| 1 | SAC | Wavy V2 | Lidar | 183.70 | 90k |
 
-## Phase 1 Results
-- **Best PPO:** 226.49 on Wavy V2 (100% validation, 0.00 std dev across 100 episodes)
-- **Best SAC:** 183.7 on Wavy V2 with random starts
-- See `PHASE_1_COMPLETE.md` for details and `Learnings/Phase One Summary.md` for experiment history
+All models validated with 100 episodes in deterministic mode. See `CLAUDE.md` for full details.
 
-## Quickstart (from racing_sim/ directory)
+## Quickstart
+
+All commands run from the `racing_sim/` directory.
+
 ```bash
-# Train PPO on best config
-py scripts/train.py --algo ppo --preset fast --total-timesteps 50000 \
+# Install
+uv venv && uv pip install -e .
+
+# Train PPO (lidar, best config)
+py scripts/train.py --algo ppo --preset fast --total-timesteps 500000 \
   --config configs/wavy_v2_progress_0p75.yaml \
-  --save-freq 10000 --eval-freq 10000 --eval-episodes 5
+  --learning-rate 0.001 --ent-coef 0.02 \
+  --save-freq 50000 --eval-freq 20000 --eval-episodes 5
 
-# Train SAC on Wavy V2
-py scripts/train.py --algo sac --preset fast --total-timesteps 100000 \
-  --config configs/fast_iter_v3_complex_wavy_v2_progress_0p7.yaml \
-  --eval-freq 10000 --eval-episodes 5 --learning-rate 0.003 --ent-coef auto \
-  --learning-starts 0 --batch-size 256 --buffer-size 200000 --gradient-steps 4 \
-  --n-envs 4 --vec-env subproc
+# Train PPO (CNN, all-time best)
+py scripts/train.py --algo ppo --preset fast --total-timesteps 300000 \
+  --cnn --config configs/wavy_v2_cnn.yaml \
+  --learning-rate 0.0003 --ent-coef 0.02 \
+  --save-freq 50000 --eval-freq 20000 --eval-episodes 5 --seed 42
 
-# Play the best model
-py scripts/play.py --algo ppo \
-  --model "../Good Models/PPO Wavy V2 Progress 0.75 - 226.49 Reward at 30k/best_model.zip" \
-  --config configs/wavy_v2_progress_0p75.yaml --episodes 5 --deterministic
+# Play with keyboard (arrows/WASD, ESC to quit)
+py scripts/play.py
+
+# Play a trained model
+py scripts/play.py --model "../Good Models/PPO CNN Wavy V2 LR0.0003 - 249.43 Reward/best_model.zip" \
+  --config configs/wavy_v2_cnn.yaml --deterministic --episodes 5
 
 # Validate (headless, 100 episodes)
-py scripts/validate.py \
-  --model "../Good Models/PPO Wavy V2 Progress 0.75 - 226.49 Reward at 30k/best_model.zip" \
-  --config configs/wavy_v2_progress_0p75.yaml --episodes 100 --deterministic
+py scripts/validate.py --model MODEL_PATH --config CONFIG_PATH --episodes 100 --deterministic
 
 # TensorBoard
 tensorboard --logdir logs
 ```
 
-## Track Variants (Phase 1)
-The simulator supports optional waviness to make the ellipse more challenging:
+## Track Variants
+
 - **Simple ellipse:** `configs/fast_iter_v3_complex_progress_0p5.yaml`
 - **Wavy V1** (waves=3, waviness=0.06): `configs/fast_iter_v3_complex_wavy_v1.yaml`
 - **Wavy V2** (waves=5, waviness=0.08): `configs/fast_iter_v3_complex_wavy_v2_progress_0p7.yaml`
 - **Wavy V2 optimized** (progress 0.75): `configs/wavy_v2_progress_0p75.yaml`
-
-## Sensors (LIDAR)
-Current configs use **9 rays** and **400px max distance** for better lookahead.
+- **Wavy V2 CNN** (36x36 grid): `configs/wavy_v2_cnn.yaml`
 
 ## Project Organization
-- `racing_sim/` -- Main Python package and training scripts
-- `Good Models/` -- Proven trained models with READMEs (6 models)
-- `Good Models/_archived/` -- Superseded models kept for reference
-- `Learnings/` -- Experiment summaries and anti-pattern guide
-- `archive/` -- Deprecated root-level documents
-- `CLAUDE.md` -- Agent quick reference
-- `STANDARDS.md` -- Conventions for future work
-- `RESEARCH_ROADMAP.md` -- Multi-phase research plan
+
+- `racing_sim/` -- Main Python package, training scripts, and configs
+- `Good Models/` -- Proven trained models with READMEs
+- `Learnings/` -- Experiment summaries and anti-pattern guide (see `Learnings/README.md` for index)
+- `CLAUDE.md` -- Agent quick reference (commands, architecture, hyperparameters)
+- `STANDARDS.md` -- Experiment protocols and conventions
+
+## Future Work
+
+- **Robustness:** Multi-seed validation, sensitivity analysis, failure mode documentation
+- **Harder tracks:** waviness > 0.08, more waves, narrower width
+- **Domain randomization:** Lidar noise, friction variation, action delay for sim-to-real transfer
+- **Deployment:** ONNX export, model quantization for edge inference
+- **Sim-to-real bridge:** Homography-warped camera feed on physical car with steering/throttle control
