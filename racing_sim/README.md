@@ -30,13 +30,13 @@ pip install tqdm rich
 ### Train an Agent
 
 ```bash
-# Train with PPO on best config (Wavy V2, progress 0.75)
+# Train with PPO on physics_v2 baseline
 py scripts/train.py --algo ppo --preset fast --total-timesteps 50000 \
-  --config configs/wavy_v2_progress_0p75.yaml
+  --config configs/physics_v2.yaml
 
-# Train with SAC on Wavy V2
+# Train with SAC on legacy Wavy V2 (deprecated config)
 py scripts/train.py --algo sac --preset fast --total-timesteps 100000 \
-  --config configs/fast_iter_v3_complex_wavy_v2_progress_0p7.yaml \
+  --config configs/deprecated/legacy_2026_02/fast_iter_v3_complex_wavy_v2_progress_0p7.yaml \
   --learning-rate 0.003 --ent-coef auto --gradient-steps 4
 
 # More options
@@ -57,7 +57,7 @@ tensorboard --logdir logs
 py scripts/play.py
 
 # Visualize a trained model
-py scripts/play.py --model models/ppo_final.zip --config configs/wavy_v2_progress_0p75.yaml
+py scripts/play.py --model models/ppo_final.zip --config configs/physics_v2.yaml
 
 # Run multiple episodes deterministically
 py scripts/play.py --model models/ppo_final.zip --episodes 10 --deterministic
@@ -67,10 +67,26 @@ py scripts/play.py --model models/ppo_final.zip --episodes 10 --deterministic
 - Arrow keys or WASD: Steer and accelerate
 - ESC: Quit
 
+### Physics Tuning
+
+```bash
+# Interactive tuner on a simple ellipse track
+py scripts/physics_tuner.py --config configs/physics_v2.yaml
+
+# Log speed/accel/position to CSV (headless)
+py scripts/physics_probe.py --config configs/physics_v2.yaml --scenario straight_full_throttle --steps 600
+
+# Sweep multiple configs + scenarios to a summary CSV
+py scripts/physics_sweep.py --configs configs/physics_v2.yaml \
+  configs/deprecated/physics_v2_candidates/physics_v2_f1_grip.yaml \
+  configs/deprecated/physics_v2_candidates/physics_v2_training_safe.yaml \
+  --scenario all --steps 600
+```
+
 ### Validate (Headless)
 
 ```bash
-py scripts/validate.py --model MODEL_PATH --config CONFIG_PATH --episodes 100 --deterministic
+py scripts/validate.py --model MODEL_PATH --config CONFIG_PATH --episodes 1 --deterministic
 ```
 
 ## Environment Details
@@ -93,15 +109,23 @@ py scripts/validate.py --model MODEL_PATH --config CONFIG_PATH --episodes 100 --
 
 ## Configuration
 
-4 proven configs in `configs/`:
-- `fast_iter_v3_complex_progress_0p5.yaml` -- simple ellipse, progress reward 0.5
-- `fast_iter_v3_complex_wavy_v1.yaml` -- wavy track (waves=3, waviness=0.06)
-- `fast_iter_v3_complex_wavy_v2_progress_0p7.yaml` -- harder wavy track (waves=5, waviness=0.08)
-- `wavy_v2_progress_0p75.yaml` -- Wavy V2 optimized (progress 0.75, best PPO config)
+Physics v2 baseline config in `configs/`:
+- `physics_v2.yaml` -- simple ellipse, new physics defaults
+
+Legacy configs are in `configs/deprecated/legacy_2026_02/` (pre-physics_v2):
+- `fast_iter_v3_complex_progress_0p5.yaml`
+- `fast_iter_v3_complex_wavy_v1.yaml`
+- `fast_iter_v3_complex_wavy_v2_progress_0p7.yaml`
+- `wavy_v2_progress_0p75.yaml`
+- `wavy_v2_progress_0p75_3k_steps.yaml`
+- `wavy_v2_cnn.yaml`
+
+Experimental physics v2 candidates (UNVALIDATED) are in:
+- `configs/deprecated/physics_v2_candidates/`
 
 Use with:
 ```bash
-py scripts/train.py --config configs/wavy_v2_progress_0p75.yaml
+py scripts/train.py --config configs/physics_v2.yaml
 ```
 
 ## Project Structure
@@ -120,7 +144,7 @@ racing_sim/
 │   ├── train.py              # SB3 training script
 │   ├── play.py               # Visualization script
 │   └── validate.py           # Headless validation
-└── configs/                  # 4 proven configs + deprecated/
+└── configs/                  # physics_v2.yaml + deprecated/
 ```
 
 ## Dependencies

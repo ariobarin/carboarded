@@ -13,12 +13,12 @@
 | Episode length | 2000 (full laps) |
 
 ## Training
-**Config:** `configs/fast_iter_v3_complex_wavy_v2_progress_0p7.yaml`
+**Config:** `../Good Models/_archived/Fast Iter V3 Complex Wavy V2 Progress0p7 LR3e-3 Ent0p04/config.yaml`
 **Command:**
 ```bash
 cd racing_sim
 py scripts/train.py --algo ppo --preset fast --total-timesteps 80000 \
-  --config configs/fast_iter_v3_complex_wavy_v2_progress_0p7.yaml \
+  --config ../Good Models/_archived/Fast Iter V3 Complex Wavy V2 Progress0p7 LR3e-3 Ent0p04/config.yaml \
   --eval-freq 10000 --eval-episodes 5 --learning-rate 0.003 --ent-coef 0.04
 ```
 
@@ -27,7 +27,7 @@ py scripts/train.py --algo ppo --preset fast --total-timesteps 80000 \
 cd racing_sim
 py scripts/play.py --algo ppo \
   --model "../Good Models/Fast Iter V3 Complex Wavy V2 Progress0p7 LR3e-3 Ent0p04/best_model.zip" \
-  --config configs/fast_iter_v3_complex_wavy_v2_progress_0p7.yaml \
+  --config ../Good Models/_archived/Fast Iter V3 Complex Wavy V2 Progress0p7 LR3e-3 Ent0p04/config.yaml \
   --episodes 5 --deterministic
 ```
 

@@ -16,11 +16,11 @@
 | Stability | Typical SAC instability (dips at 70k-90k) |
 
 ## Training
-**Config:** `configs/fast_iter_v3_complex_wavy_v2_progress_0p7.yaml`
+**Config:** `../Good Models/_archived/SAC Wavy V2 GradSteps4 LR3e-3 AutoEnt/config.yaml`
 **Command:**
 ```bash
 py scripts/train.py --algo sac --preset fast --total-timesteps 100000 \
-  --config configs/fast_iter_v3_complex_wavy_v2_progress_0p7.yaml \
+  --config ../Good Models/_archived/SAC Wavy V2 GradSteps4 LR3e-3 AutoEnt/config.yaml \
   --eval-freq 10000 --eval-episodes 5 --learning-rate 0.003 --ent-coef auto \
   --learning-starts 0 --batch-size 256 --buffer-size 200000 --gradient-steps 4 \
   --n-envs 4 --vec-env subproc

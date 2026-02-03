@@ -26,12 +26,12 @@
 | 90k | 183.70 | 2000 (peak) |
 
 ## Training
-**Config:** `configs/fast_iter_v3_complex_wavy_v2_progress_0p7.yaml`
+**Config:** `config.yaml` (legacy snapshot)
 **Command:**
 ```bash
 cd racing_sim
 py scripts/train.py --algo sac --preset fast --total-timesteps 100000 \
-  --config configs/fast_iter_v3_complex_wavy_v2_progress_0p7.yaml \
+  --config "../Good Models/SAC Wavy V2 Random Start 183.7 at 90k/config.yaml" \
   --eval-freq 10000 --eval-episodes 5 --learning-rate 0.003 --ent-coef auto \
   --learning-starts 0 --batch-size 256 --buffer-size 200000 --gradient-steps 4 \
   --random-start --n-envs 4 --vec-env subproc
@@ -42,7 +42,7 @@ py scripts/train.py --algo sac --preset fast --total-timesteps 100000 \
 cd racing_sim
 py scripts/play.py --algo sac \
   --model "../Good Models/SAC Wavy V2 Random Start 183.7 at 90k/best_model.zip" \
-  --config configs/fast_iter_v3_complex_wavy_v2_progress_0p7.yaml \
+  --config "../Good Models/SAC Wavy V2 Random Start 183.7 at 90k/config.yaml" \
   --episodes 5 --deterministic
 ```
 

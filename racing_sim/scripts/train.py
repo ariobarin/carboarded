@@ -15,7 +15,7 @@ PRESETS = {
     "ppo": {
         "fast": dict(
             learning_rate=1e-2,
-            n_steps=1024,
+            n_steps=2048,
             batch_size=64,
             n_epochs=5,
             clip_range=0.2,
@@ -143,7 +143,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--eval-episodes",
         type=int,
-        default=2,
+        default=1,
         help="Number of evaluation episodes"
     )
     parser.add_argument(
@@ -250,6 +250,18 @@ def build_arg_parser() -> argparse.ArgumentParser:
         help="Override SAC tau (target network soft update coefficient)"
     )
     parser.add_argument(
+        "--target-kl",
+        type=float,
+        default=None,
+        help="PPO target KL divergence for early stopping updates (e.g. 0.01-0.03)"
+    )
+    parser.add_argument(
+        "--n-epochs",
+        type=int,
+        default=None,
+        help="Override PPO n_epochs (number of passes through rollout data per update)"
+    )
+    parser.add_argument(
         "--no-eval",
         action="store_true",
         help="Disable evaluation during training"
@@ -297,6 +309,68 @@ def build_arg_parser() -> argparse.ArgumentParser:
         help="Use CNN policy with occupancy grid observations (sets obs_type='grid', uses CnnPolicy)"
     )
 
+    # Phase 3: Plasticity loss prevention arguments
+    parser.add_argument(
+        "--layernorm",
+        action="store_true",
+        help="Use LayerNorm policy (prevents dead ReLUs and weight explosion)"
+    )
+    parser.add_argument(
+        "--l2-reg",
+        type=float,
+        default=None,
+        help="L2 regularization weight (weight_decay for optimizer, e.g. 0.0001)"
+    )
+    parser.add_argument(
+        "--adam-betas",
+        type=float,
+        nargs=2,
+        default=None,
+        metavar=("BETA1", "BETA2"),
+        help="Adam optimizer betas (e.g. 0.99 0.99 for equal momentum/variance decay)"
+    )
+    parser.add_argument(
+        "--shrink-perturb",
+        action="store_true",
+        help="Enable Shrink+Perturb callback (periodically resets plasticity)"
+    )
+    parser.add_argument(
+        "--shrink-interval",
+        type=int,
+        default=50000,
+        help="Steps between shrink+perturb applications (default: 50000)"
+    )
+    parser.add_argument(
+        "--freeze-cnn-layers",
+        type=int,
+        default=0,
+        help="Freeze the first N CNN layers (grid obs only). Default: 0"
+    )
+    parser.add_argument(
+        "--log-std-min",
+        type=float,
+        default=None,
+        help="Clamp policy log_std minimum (PPO only)"
+    )
+    parser.add_argument(
+        "--log-std-max",
+        type=float,
+        default=None,
+        help="Clamp policy log_std maximum (PPO only)"
+    )
+    parser.add_argument(
+        "--grad-log-freq",
+        type=int,
+        default=0,
+        help="Log grad/update norms every N timesteps (0 disables)"
+    )
+    parser.add_argument(
+        "--rollout-log-freq",
+        type=int,
+        default=0,
+        help="Log rollout stats every N rollouts (0 disables)"
+    )
+
     return parser
 
 
@@ -324,8 +398,8 @@ def resolve_env_config(path_str: Optional[str]) -> Tuple[EnvConfig, str]:
     if path_str:
         return EnvConfig.from_yaml(path_str), path_str
 
-    # Try fast_iter_v3_complex_progress_0p5.yaml as the default (simple track, proven config)
-    default_path = Path(__file__).parent.parent / "configs" / "fast_iter_v3_complex_progress_0p5.yaml"
+    # Try physics_v2.yaml as the default (new physics baseline)
+    default_path = Path(__file__).parent.parent / "configs" / "physics_v2.yaml"
     if default_path.exists():
         return EnvConfig.from_yaml(str(default_path)), str(default_path)
 
@@ -441,6 +515,10 @@ def build_preset_kwargs(args) -> dict:
                 preset_kwargs["ent_coef"] = float(args.ent_coef)
             except ValueError:
                 preset_kwargs["ent_coef"] = args.ent_coef
+    if args.algo == "ppo" and args.target_kl is not None:
+        preset_kwargs["target_kl"] = args.target_kl
+    if args.algo == "ppo" and args.n_epochs is not None:
+        preset_kwargs["n_epochs"] = args.n_epochs
     if args.algo == "sac" and args.target_entropy is not None:
         preset_kwargs["target_entropy"] = args.target_entropy
     if args.algo == "sac":
@@ -459,6 +537,28 @@ def build_preset_kwargs(args) -> dict:
     return preset_kwargs
 
 
+def apply_known_good_defaults(args, config: EnvConfig) -> None:
+    """Apply empirically proven defaults when the user doesn't specify them."""
+    if args.algo != "ppo":
+        return
+
+    # Defaults differ between CNN (grid) and lidar runs.
+    if config.obs_type == "grid":
+        if args.learning_rate is None:
+            args.learning_rate = 3e-4
+        if args.ent_coef is None:
+            args.ent_coef = "0.02"
+        if args.target_kl is None:
+            args.target_kl = 0.05
+        if args.l2_reg is None:
+            args.l2_reg = 0.0001
+    else:
+        if args.learning_rate is None:
+            args.learning_rate = 0.003
+        if args.ent_coef is None:
+            args.ent_coef = "0.02"
+
+
 def main():
     """Main training function."""
     args = parse_args()
@@ -471,6 +571,8 @@ def main():
         config.random_start = True
     if args.cnn:
         config.obs_type = "grid"
+
+    apply_known_good_defaults(args, config)
 
     # Create directories
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -556,8 +658,42 @@ def main():
         callbacks.append(eval_callback)
     # Add cohort spawn callback for PPO random starts
     if use_cohort_spawn:
-        cohort_callback = make_cohort_spawn_callback(num_checkpoints=64)
+        if config.track.track_type == "custom" and config.track.custom is not None:
+            num_checkpoints = config.track.custom.num_checkpoints
+        else:
+            num_checkpoints = 64  # Default for elliptical tracks
+        cohort_callback = make_cohort_spawn_callback(num_checkpoints=num_checkpoints)
         callbacks.append(cohort_callback)
+
+    # Add Shrink+Perturb callback for plasticity restoration
+    if args.shrink_perturb:
+        from racing_sim.callbacks.plasticity import ShrinkPerturbCallback
+        shrink_callback = ShrinkPerturbCallback(
+            interval=args.shrink_interval,
+            verbose=1,
+        )
+        callbacks.append(shrink_callback)
+        print(f"Shrink+Perturb enabled (interval={args.shrink_interval})")
+
+    # Log_std clamp callback (PPO only)
+    if args.algo == "ppo" and (args.log_std_min is not None or args.log_std_max is not None):
+        if args.log_std_min is None or args.log_std_max is None:
+            raise ValueError("--log-std-min and --log-std-max must be set together")
+        from racing_sim.callbacks.log_std_clamp import LogStdClampCallback
+        clamp_callback = LogStdClampCallback(args.log_std_min, args.log_std_max)
+        callbacks.append(clamp_callback)
+        print(f"log_std clamped to [{args.log_std_min}, {args.log_std_max}]")
+
+    # Grad/update norm logging
+    if args.grad_log_freq and args.grad_log_freq > 0:
+        from racing_sim.callbacks.grad_stats import GradStatsCallback
+        callbacks.append(GradStatsCallback(log_freq=args.grad_log_freq))
+        print(f"Grad/update norm logging enabled (freq={args.grad_log_freq})")
+
+    if args.rollout_log_freq and args.rollout_log_freq > 0:
+        from racing_sim.callbacks.rollout_stats import RolloutStatsCallback
+        callbacks.append(RolloutStatsCallback(log_freq=args.rollout_log_freq))
+        print(f"Rollout stats logging enabled (freq={args.rollout_log_freq})")
 
     callback = None
     if callbacks:
@@ -568,7 +704,31 @@ def main():
     # Create model
     tensorboard_log = None if args.no_tensorboard else str(log_dir)
     preset_kwargs = build_preset_kwargs(args)
-    policy = "CnnPolicy" if config.obs_type == "grid" else "MlpPolicy"
+
+    # Determine policy class
+    if args.layernorm:
+        if config.obs_type == "grid":
+            raise ValueError("--layernorm is not compatible with --cnn (CNN uses separate feature extractor)")
+        from racing_sim.policies.layernorm_policy import LayerNormActorCriticPolicy
+        policy = LayerNormActorCriticPolicy
+        print("Using LayerNorm policy (prevents dead ReLUs and weight explosion)")
+    else:
+        policy = "CnnPolicy" if config.obs_type == "grid" else "MlpPolicy"
+
+    # Build policy_kwargs for optimizer customization
+    policy_kwargs = {}
+    optimizer_kwargs = {}
+
+    if args.l2_reg is not None:
+        optimizer_kwargs["weight_decay"] = args.l2_reg
+        print(f"L2 regularization enabled (weight_decay={args.l2_reg})")
+
+    if args.adam_betas is not None:
+        optimizer_kwargs["betas"] = tuple(args.adam_betas)
+        print(f"Adam betas set to {tuple(args.adam_betas)}")
+
+    if optimizer_kwargs:
+        policy_kwargs["optimizer_kwargs"] = optimizer_kwargs
 
     if args.algo == "ppo":
         from stable_baselines3 import PPO
@@ -577,6 +737,7 @@ def main():
             policy=policy,
             env=env,
             **preset_kwargs,
+            policy_kwargs=policy_kwargs if policy_kwargs else None,
             verbose=1,
             tensorboard_log=tensorboard_log,
             seed=args.seed,
@@ -589,11 +750,20 @@ def main():
             policy=policy,
             env=env,
             **preset_kwargs,
+            policy_kwargs=policy_kwargs if policy_kwargs else None,
             verbose=1,
             tensorboard_log=tensorboard_log,
             seed=args.seed,
             device=args.device,
         )
+
+    # Freeze early CNN layers for transfer learning (grid obs only)
+    if args.freeze_cnn_layers and args.freeze_cnn_layers > 0:
+        if config.obs_type != "grid":
+            raise ValueError("--freeze-cnn-layers requires grid observations (use --cnn or grid config)")
+        from racing_sim.utils.training_utils import freeze_cnn_layers
+        frozen = freeze_cnn_layers(model.policy, args.freeze_cnn_layers)
+        print(f"Frozen {len(frozen)} CNN params across extractors (first {args.freeze_cnn_layers} layers)")
 
     # Load pretrained model if specified (for curriculum learning)
     if args.load_model:

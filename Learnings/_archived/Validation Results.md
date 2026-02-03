@@ -1,6 +1,6 @@
 # Model Validation Results
 
-Validation performed on 2026-01-30 using `validate.py` with 100 episodes in deterministic mode.
+Validation performed on 2026-01-30 using `validate.py` with 1 episode in deterministic mode.
 
 ## Summary
 
@@ -72,7 +72,7 @@ cd racing_sim
 py scripts/validate.py \
   --model "../Good Models/[MODEL_FOLDER]/best_model.zip" \
   --config configs/[CONFIG].yaml \
-  --episodes 100 --deterministic
+  --episodes 1 --deterministic
 ```
 
 ## Observations

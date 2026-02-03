@@ -1,0 +1,35 @@
+# Test square track for verifying custom track integration
+# Created by create_track.py
+
+track:
+  track_type: custom
+  custom:
+    width: 100.0
+    num_checkpoints: 64
+    start_node_index: 0
+    start_offset: 0.0
+    nodes:
+      - {x: 200, y: 150, radius: 60}
+      - {x: 600, y: 150, radius: 60}
+      - {x: 600, y: 450, radius: 60}
+      - {x: 200, y: 450, radius: 60}
+
+# Standard config for training
+car:
+  mass: 1.0
+  width: 40.0
+  height: 20.0
+  max_speed: 1000.0b
+  engine_power: 500.0
+
+lidar:
+  num_rays: 5
+  ray_angles: [-60.0, -30.0, 0.0, 30.0, 60.0]
+  max_distance: 200.0
+
+max_episode_steps: 1000
+checkpoint_reward: 1.0
+speed_bonus_scale: 0.05
+progress_reward_scale: 0.75
+collision_penalty: -20.0
+time_penalty: 0.0

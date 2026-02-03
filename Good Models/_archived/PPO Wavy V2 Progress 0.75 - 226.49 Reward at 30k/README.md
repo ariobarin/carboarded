@@ -23,13 +23,13 @@
 | 50k | 222.96 (recovered) |
 
 ## Training
-**Config:** `configs/wavy_v2_progress_0p75.yaml`
+**Config:** `../Good Models/_archived/PPO Wavy V2 Progress 0.75 - 226.49 Reward at 30k/config.yaml`
 **Approach:** Fine-tuned from a 199.13-reward model (progress=0.7) with progress bumped to 0.75.
 **Command (fine-tuning):**
 ```bash
 cd racing_sim
 py scripts/train.py --algo ppo --preset fast --total-timesteps 60000 \
-  --config configs/wavy_v2_progress_0p75.yaml \
+  --config ../Good Models/_archived/PPO Wavy V2 Progress 0.75 - 226.49 Reward at 30k/config.yaml \
   --save-freq 10000 --eval-freq 10000 --eval-episodes 5 \
   --load-model models/ppo_fast_20260130_180303/ppo_final.zip
 ```
@@ -38,7 +38,7 @@ py scripts/train.py --algo ppo --preset fast --total-timesteps 60000 \
 ```bash
 cd racing_sim
 py scripts/train.py --algo ppo --preset fast --total-timesteps 50000 \
-  --config configs/wavy_v2_progress_0p75.yaml \
+  --config ../Good Models/_archived/PPO Wavy V2 Progress 0.75 - 226.49 Reward at 30k/config.yaml \
   --save-freq 10000 --eval-freq 10000 --eval-episodes 5
 ```
 
@@ -49,12 +49,12 @@ cd racing_sim
 # Validate (headless, 100 episodes)
 py scripts/validate.py \
   --model "../Good Models/PPO Wavy V2 Progress 0.75 - 226.49 Reward at 30k/best_model.zip" \
-  --config configs/wavy_v2_progress_0p75.yaml --episodes 100 --deterministic
+  --config ../Good Models/_archived/PPO Wavy V2 Progress 0.75 - 226.49 Reward at 30k/config.yaml --episodes 1 --deterministic
 
 # Play (visual)
 py scripts/play.py --algo ppo \
   --model "../Good Models/PPO Wavy V2 Progress 0.75 - 226.49 Reward at 30k/best_model.zip" \
-  --config configs/wavy_v2_progress_0p75.yaml --episodes 5 --deterministic
+  --config ../Good Models/_archived/PPO Wavy V2 Progress 0.75 - 226.49 Reward at 30k/config.yaml --episodes 5 --deterministic
 ```
 
 ## Files

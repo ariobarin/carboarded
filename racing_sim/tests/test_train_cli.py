@@ -20,7 +20,7 @@ def test_train_arg_parser_defaults():
     assert args.total_timesteps == 200000
     assert args.n_envs == 1
     assert args.vec_env == "dummy"
-    assert args.eval_episodes == 2
+    assert args.eval_episodes == 1
     assert args.device == "auto"
     assert args.learning_rate is None
     assert args.clip_range is None
@@ -37,6 +37,11 @@ def test_train_arg_parser_defaults():
     assert args.no_checkpoint is False
     assert args.no_tensorboard is False
     assert args.no_progress is False
+    assert args.freeze_cnn_layers == 0
+    assert args.grad_log_freq == 0
+    assert args.rollout_log_freq == 0
+    assert args.log_std_min is None
+    assert args.log_std_max is None
 
 
 def test_train_presets_structure():
@@ -55,7 +60,8 @@ def test_resolve_env_config_defaults_to_yaml():
     config, source = train.resolve_env_config(None)
 
     assert "configs" in source
-    assert config.car.max_speed == 1000.0
+    assert "physics_v2.yaml" in source
+    assert config.car.max_speed == 360.0
 
 
 def test_train_arg_parser_overrides_entropy_settings():
@@ -108,3 +114,35 @@ def test_build_preset_kwargs_overrides_sac_training_params():
     assert preset_kwargs["learning_starts"] == 500
     assert preset_kwargs["train_freq"] == 4
     assert preset_kwargs["gradient_steps"] == 2
+
+
+def test_apply_known_good_defaults_for_grid_obs():
+    train = import_train_module()
+    from racing_sim.config.config import EnvConfig
+
+    parser = train.build_arg_parser()
+    args = parser.parse_args([])
+    config = EnvConfig()
+    config.obs_type = "grid"
+
+    train.apply_known_good_defaults(args, config)
+
+    assert args.learning_rate == 0.0003
+    assert args.ent_coef == "0.02"
+    assert args.target_kl == 0.05
+    assert args.l2_reg == 0.0001
+
+
+def test_apply_known_good_defaults_for_lidar_obs():
+    train = import_train_module()
+    from racing_sim.config.config import EnvConfig
+
+    parser = train.build_arg_parser()
+    args = parser.parse_args([])
+    config = EnvConfig()
+    config.obs_type = "lidar"
+
+    train.apply_known_good_defaults(args, config)
+
+    assert args.learning_rate == 0.003
+    assert args.ent_coef == "0.02"

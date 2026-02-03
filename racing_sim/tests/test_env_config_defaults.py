@@ -14,8 +14,8 @@ def load_env_config():
 
 def test_env_config_defaults_match_default_yaml():
     repo_root = Path(__file__).resolve().parents[1]
-    # default.yaml moved to deprecated/ but still used as baseline for EnvConfig() defaults
-    yaml_path = repo_root / "configs" / "deprecated" / "default.yaml"
+    # default.yaml is the baseline for EnvConfig() defaults
+    yaml_path = repo_root / "configs" / "default.yaml"
     EnvConfig = load_env_config()
     file_config = EnvConfig.from_yaml(str(yaml_path))
     default_config = EnvConfig()
@@ -29,3 +29,5 @@ def test_env_config_defaults_match_default_yaml():
     assert default_config.slowdown_penalty_scale == file_config.slowdown_penalty_scale
     assert default_config.collision_penalty == file_config.collision_penalty
     assert default_config.time_penalty == file_config.time_penalty
+    assert default_config.random_start == file_config.random_start
+    assert default_config.random_start_lateral_fraction == file_config.random_start_lateral_fraction

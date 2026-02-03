@@ -11,28 +11,35 @@ All commands run from the `racing_sim/` directory unless noted otherwise.
 uv venv && uv pip install -e .
 
 # If uv can't find the venv:
-uv pip install <package> --python "C:\Desktop\Repos\fine-ill-do-it-myself\racing_sim\.venv\Scripts\python.exe"
+uv pip install <package> --python .venv/Scripts/python.exe
 
 # Train (PPO default)
 py scripts/train.py --preset fast --total-timesteps 200000
 py scripts/train.py --algo sac --preset balanced --total-timesteps 300000
-py scripts/train.py --config configs/fast_iter_v3_complex_wavy_v1.yaml --learning-rate 0.003 --ent-coef 0.03
+py scripts/train.py --config configs/deprecated/legacy_2026_02/fast_iter_v3_complex_wavy_v1.yaml --learning-rate 0.003 --ent-coef 0.03
 
 # Best PPO training command - Lidar (247.26 reward on Wavy V2)
 py scripts/train.py --algo ppo --preset fast --total-timesteps 500000 \
-  --config configs/wavy_v2_progress_0p75.yaml \
+  --config "../Good Models/PPO Wavy V2 Ent0p02 LR0p001 500k - 247.26 Reward/config.yaml" \
   --learning-rate 0.001 --ent-coef 0.02 \
   --save-freq 50000 --eval-freq 20000 --eval-episodes 5
 
-# Best PPO training command - CNN (249.43 reward on Wavy V2 -- ALL-TIME BEST)
+# Best PPO training command - CNN with L2 regularization (252.60 reward on Wavy V2 -- ALL-TIME BEST)
+py scripts/train.py --algo ppo --preset fast --total-timesteps 500000 \
+  --cnn --config "../Good Models/PPO CNN L2Reg Wavy V2 - 252.60 Reward/config.yaml" \
+  --learning-rate 0.0003 --ent-coef 0.02 --target-kl 0.02 \
+  --l2-reg 0.0001 --seed 7 \
+  --save-freq 50000 --eval-freq 20000 --eval-episodes 5
+
+# CNN without L2 (249.43 reward - previous best)
 py scripts/train.py --algo ppo --preset fast --total-timesteps 300000 \
-  --cnn --config configs/wavy_v2_cnn.yaml \
+  --cnn --config "../Good Models/PPO CNN Wavy V2 LR0.0003 - 249.43 Reward/config.yaml" \
   --learning-rate 0.0003 --ent-coef 0.02 \
   --save-freq 50000 --eval-freq 20000 --eval-episodes 5 --seed 42
 
 # Train with random starting positions (SAC only -- PPO fails with random starts)
 py scripts/train.py --algo sac --preset fast --total-timesteps 100000 \
-  --config configs/fast_iter_v3_complex_wavy_v2_progress_0p7.yaml \
+  --config configs/deprecated/legacy_2026_02/fast_iter_v3_complex_wavy_v2_progress_0p7.yaml \
   --random-start --ent-coef auto --gradient-steps 4 --learning-starts 0
 
 # Fast iteration (skip eval/checkpoints/TensorBoard)
@@ -45,8 +52,28 @@ py scripts/play.py --show-grid --model models/path/best_model.zip  # CNN grid vi
 py scripts/play.py --show-grid --fps 30               # limit to 30 FPS (default: 60)
 # In-game keys: G=toggle grid, V=toggle grid debug mode (world-space circles), L=toggle lidar, R=reset
 
+# Physics tuning / probes
+py scripts/physics_tuner.py --config configs/physics_v2.yaml
+py scripts/physics_probe.py --config configs/physics_v2.yaml --scenario straight_full_throttle --steps 600
+py scripts/physics_sweep.py --configs configs/physics_v2.yaml \
+  configs/deprecated/physics_v2_candidates/physics_v2_f1_grip.yaml \
+  configs/deprecated/physics_v2_candidates/physics_v2_training_safe.yaml \
+  --scenario all --steps 600
+
+# Track Editor (visual node-based track creator)
+py scripts/create_track.py                            # launch editor
+py scripts/create_track.py --load configs/custom_tracks/square_test.yaml  # edit existing track
+# Editor controls: Click=add/select node, Drag=move, Right-click=delete, G=grid snap, P=preview mode
+# Ctrl+S=save, Ctrl+O=open, Ctrl+Z=undo, Ctrl+Y=redo, Up/Down=adjust radius, +/-=adjust width
+
+# Play custom track
+py scripts/play.py --config configs/custom_tracks/square_test.yaml
+
+# Train on custom track
+py scripts/train.py --config configs/custom_tracks/square_test.yaml --total-timesteps 100000
+
 # Validate (headless, 100 episodes)
-py scripts/validate.py --model MODEL_PATH --config CONFIG_PATH --episodes 100 --deterministic
+py scripts/validate.py --model MODEL_PATH --config CONFIG_PATH --episodes 1 --deterministic
 
 # TensorBoard
 tensorboard --logdir logs
@@ -68,12 +95,17 @@ py -c "from gymnasium.utils.env_checker import check_env; from racing_sim import
 
 **Core components** (all under `racing_sim/racing_sim/`):
 - **envs/racing_env.py** -- Gymnasium env orchestrating everything. Obs: N normalized lidar distances [0,1]. Action: [steering, throttle].
-- **physics/car.py** -- Pymunk rigid body with lateral friction (prevents sliding). Speed-dependent steering (30% at standstill, 100% at speed >= 100).
+- **physics/car.py** -- Pymunk rigid body with lateral friction (prevents sliding). Speed-dependent steering via steering_speed_ref/steering_min_factor; higher speed reduces torque while still allowing standstill turning.
 - **physics/track.py** -- Elliptical track with static wall segments (64 each for inner/outer). Supports waviness parameters for difficulty variation. 64 checkpoint lines for progress tracking.
+- **editor/node_track.py** -- Node-based custom track with fillet corners. Same interface as Track; used when `track_type="custom"` in config.
+- **editor/geometry.py** -- Pure math functions for fillet computation, offset curves, arc discretization.
+- **editor/validation.py** -- Track validation (self-intersection, impossible turns, width violations).
+- **editor/editor_state.py** -- Editor state management with undo/redo.
+- **editor/editor_renderer.py** -- PyGame rendering for the track editor.
 - **sensors/lidar.py** -- Pymunk raycast sensor. Configurable ray count/angles/max distance. Filters car's own shape via ShapeFilter.
 - **sensors/grid.py** -- Homographic grid sensor for CNN observation. Projects a 36x36 grid ahead of the car using perspective transform; each cell is 1 (on track) or 0 (off track) via bitmap lookup.
 - **rendering/renderer.py** -- PyGame visualization with lidar debug overlay, HUD stats.
-- **config/config.py** -- Dataclass-based config (EnvConfig, CarConfig, LidarConfig, TrackConfig, RenderConfig). Load from YAML via `EnvConfig.from_yaml(path)`.
+- **config/config.py** -- Dataclass-based config (EnvConfig, CarConfig, LidarConfig, TrackConfig, NodeTrackConfig, RenderConfig). Load from YAML via `EnvConfig.from_yaml(path)`.
 - **utils/reward.py** -- `compute_slowdown_penalty()` helper.
 - **utils/progress.py** -- `progress_delta()` angular progress tracker.
 
@@ -88,7 +120,7 @@ py -c "from gymnasium.utils.env_checker import check_env; from racing_sim import
 | Component | Value | Notes |
 |-----------|-------|-------|
 | Checkpoint | +1.0 | Crossing next checkpoint in sequence |
-| Progress bonus | +scale * normalized_progress | Per step; scale 0.5-0.75 (main convergence driver) |
+| Progress bonus | +scale * normalized_progress | Per step; scale 0.5-0.75 (main convergence driver). Elliptical tracks use angle delta; custom tracks use centerline distance normalized to 2π. |
 | Speed bonus | +0.05 * (speed/max_speed) | Per step |
 | Collision | -20.0 | Terminates episode |
 | Time penalty | -0.0 | Disabled (hurts convergence) |
@@ -96,13 +128,16 @@ py -c "from gymnasium.utils.env_checker import check_env; from racing_sim import
 
 ## Config Files
 
-6 proven configs in `configs/`:
-- `fast_iter_v3_complex_progress_0p5.yaml` -- simple ellipse, progress reward 0.5
-- `fast_iter_v3_complex_wavy_v1.yaml` -- wavy track (waves=3, waviness=0.06)
-- `fast_iter_v3_complex_wavy_v2_progress_0p7.yaml` -- harder wavy track (waves=5, waviness=0.08)
-- `wavy_v2_progress_0p75.yaml` -- Wavy V2 optimized (progress 0.75, best PPO lidar config)
-- `wavy_v2_progress_0p75_3k_steps.yaml` -- Same as above with max_episode_steps=3000
-- `wavy_v2_cnn.yaml` -- Wavy V2 with CNN grid observation (36x36 homographic grid, obs_type=grid)
+Physics v2 config in `configs/`:
+- `physics_v2.yaml` -- simple ellipse, new physics defaults
+
+Legacy configs in `configs/deprecated/legacy_2026_02/` (6 files -- browse directory for full list).
+
+Experimental physics v2 candidates (UNVALIDATED) in `configs/deprecated/physics_v2_candidates/`.
+
+Custom tracks in `configs/custom_tracks/`:
+- `square_test.yaml` -- simple square track for testing node-based tracks
+- `figure8_test.yaml` -- figure-8 style track with varied turn radii
 
 Deprecated configs are in `configs/deprecated/` with deprecation headers.
 
@@ -112,6 +147,8 @@ Deprecated configs are in `configs/deprecated/` with deprecation headers.
 |-----------|-------------|---------|---------|
 | PPO ent_coef | 0.02 | 0.03 | 0.02 (was 0.04) |
 | PPO progress_scale | 0.5 | 0.5 | 0.7-0.75 |
+| PPO target_kl | - | - | 0.02 (stability) |
+| PPO l2_reg | - | - | 0.0001 (higher peaks) |
 | SAC ent_coef | auto | auto | auto |
 | SAC gradient_steps | 8 | 4 | 4 |
 | SAC batch_size | 256 | 256 | 256 |
@@ -128,7 +165,7 @@ Deprecated configs are in `configs/deprecated/` with deprecation headers.
 | SAC | Wavy V1 | 209.09 | 40k | Good Models/SAC Wavy V1 GradSteps4.../ |
 | SAC | Wavy V2 | 183.70 | 90k | Good Models/SAC Wavy V2 Random Start.../ |
 
-*Validated with `validate.py --episodes 100 --deterministic` on 2026-01-30. See `Learnings/Phase One Summary.md` for details.*
+*Validated with `validate.py --episodes 1 --deterministic` on 2026-01-30. See `Learnings/Phase One Summary.md` for details.*
 *Superseded models (PPO Wavy V2 0.7, 226.49, 243.71, 342.80/3k) archived to `Good Models/_archived/`.*
 
 ## Phase 2 Results (CNN Grid Observation)
@@ -138,6 +175,14 @@ Deprecated configs are in `configs/deprecated/` with deprecation headers.
 | PPO+CNN | Wavy V2 | Grid (36x36) | **249.43** | 220k | Good Models/PPO CNN Wavy V2 LR0.0003 - 249.43 Reward/ |
 
 *CNN with homographic grid exceeds lidar baseline (247.26) by 1%. See `Learnings/CNN Grid Research.md` for details.*
+
+## Phase 3 Results (PPO Collapse Prevention)
+
+| Algorithm | Track | Obs Type | Best Reward | Steps | Model |
+|-----------|-------|----------|-------------|-------|-------|
+| PPO+CNN+L2 | Wavy V2 | Grid (36x36) | **252.60** | 120k | Good Models/PPO CNN L2Reg Wavy V2 - 252.60 Reward/ |
+
+*L2 regularization (weight_decay=0.0001) enables higher peaks. See `Learnings/PPO Collapse Prevention Research.md` for details.*
 
 ## Empirical Training Findings
 
@@ -162,6 +207,48 @@ Deprecated configs are in `configs/deprecated/` with deprecation headers.
 - **Grid configuration:** 36x36, near=30, far=200, FOV=60 degrees, camera pitch=45 degrees.
 
 See `Learnings/CNN Grid Research.md` for the full CNN experiment log.
+
+### PPO Stability Research (target_kl)
+
+- **`target_kl=0.02` significantly improves CNN training stability.** Final eval 238 vs baseline's 26. Model ends near peak instead of collapsed.
+- **target_kl=0.01 is too aggressive.** Only 319 updates in 300k steps; learning is too constrained.
+- **n_epochs=3 with target_kl=0.02 causes catastrophic failure.** The combination over-constrains learning.
+- **clip_range=0.15 slows learning too much.** Default 0.2 is better.
+- **Extended training (500k) with target_kl finds higher peaks.** 247.64 at 420k vs 242.63 at 300k. But collapse still occurs eventually.
+- **Seed variance persists even with target_kl.** Seed=1 collapsed while seed=42 maintained stability at 300k.
+- **`--target-kl` and `--n-epochs` flags added to train.py.** Recommended: `--target-kl 0.02` for CNN stability.
+
+See `Learnings/PPO Stability Research.md` for full target_kl experiment results.
+
+### CNN Stability Research (LR scheduling)
+
+- **PPO eval oscillation is fundamental, not fixable by LR/entropy/scheduling.** Three experiments (higher entropy, LR decay, high LR + decay) all show the same oscillation pattern. Best strategy: save frequently, keep peak.
+- **LR scheduling (linear decay) has marginal benefit.** Linear decay 0.0003->3e-5 showed fast early learning (eval=195 at 40k) and ended at peak instead of collapsed. Does not prevent mid-training collapse.
+- **Higher entropy (0.04) does NOT improve stability.** Slightly higher peak (+1 point) but worse oscillation amplitude. Entropy 0.02 remains optimal.
+- **LR=0.001 is too high for CNN even with aggressive decay.** Early high-LR steps damage feature extractors permanently. Peak was 23 points lower than baseline.
+- **`--lr-schedule` flag added to train.py.** Supports `linear` and `cosine` decay to 10% of initial LR.
+
+See `Learnings/CNN Stability Research.md` for full experiment results and analysis.
+
+### Phase 3: PPO Collapse Prevention (COMPLETE)
+
+**Problem:** All PPO runs eventually collapse. target_kl delays but does not prevent collapse.
+
+**Methods tested:**
+| Method | Result |
+|--------|--------|
+| Adam betas (0.99, 0.99) | FAILED - never learned (peak 3.55) |
+| L2 regularization (0.0001) | **SUCCESS** - higher peaks (252.60), delayed collapse |
+| LayerNorm (lidar) | COLLAPSED at 280k (peak 239.43) |
+| Shrink+Perturb | FAILED - destroys policy (peak 219.88) |
+
+**Key findings:**
+- **L2 regularization (weight_decay=0.0001) is the only method that helped.** Enables higher peaks (252.60 vs 249.43 baseline).
+- **PPO collapse is fundamental and cannot be fully prevented.** All 500k runs eventually collapsed.
+- **Best strategy: checkpoint frequently, keep the peak.** L2 helps reach higher peaks but doesn't eliminate checkpointing need.
+- **`--l2-reg 0.0001` flag added to train.py.** Also added: --layernorm, --adam-betas, --shrink-perturb, --shrink-interval.
+
+See `Learnings/PPO Collapse Prevention Research.md` for full experiment results.
 
 ### Rendering Optimizations
 

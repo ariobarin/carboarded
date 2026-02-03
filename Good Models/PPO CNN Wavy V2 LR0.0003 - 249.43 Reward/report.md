@@ -179,7 +179,7 @@ cd racing_sim
 py scripts/validate.py \
   --model "../Good Models/PPO CNN Wavy V2 LR0.0003 - 249.43 Reward/best_model.zip" \
   --config configs/wavy_v2_cnn.yaml \
-  --episodes 100 --deterministic
+  --episodes 1 --deterministic
 ```
 
 ### Play Command

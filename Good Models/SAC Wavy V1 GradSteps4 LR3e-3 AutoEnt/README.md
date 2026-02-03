@@ -21,12 +21,12 @@
 | 100k | 191 |
 
 ## Training
-**Config:** `configs/fast_iter_v3_complex_wavy_v1.yaml`
+**Config:** `config.yaml` (legacy snapshot)
 **Command:**
 ```bash
 cd racing_sim
 py scripts/train.py --algo sac --preset fast --total-timesteps 100000 \
-  --config configs/fast_iter_v3_complex_wavy_v1.yaml \
+  --config "../Good Models/SAC Wavy V1 GradSteps4 LR3e-3 AutoEnt/config.yaml" \
   --eval-freq 10000 --eval-episodes 5 --learning-rate 0.003 --ent-coef auto \
   --learning-starts 0 --batch-size 256 --buffer-size 200000 --gradient-steps 4 \
   --n-envs 4 --vec-env subproc
@@ -37,7 +37,7 @@ py scripts/train.py --algo sac --preset fast --total-timesteps 100000 \
 cd racing_sim
 py scripts/play.py --algo sac \
   --model "../Good Models/SAC Wavy V1 GradSteps4 LR3e-3 AutoEnt/best_model.zip" \
-  --config configs/fast_iter_v3_complex_wavy_v1.yaml \
+  --config "../Good Models/SAC Wavy V1 GradSteps4 LR3e-3 AutoEnt/config.yaml" \
   --episodes 5 --deterministic
 ```
 

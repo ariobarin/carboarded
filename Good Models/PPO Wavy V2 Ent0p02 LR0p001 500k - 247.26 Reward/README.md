@@ -9,12 +9,12 @@
 - **Success Rate:** 100% over 100 episodes, 0 std
 
 ## Config
-`configs/wavy_v2_progress_0p75.yaml`
+`config.yaml` (legacy snapshot)
 
 ## Training Command
 ```bash
 py scripts/train.py --algo ppo --preset fast --total-timesteps 500000 \
-  --config configs/wavy_v2_progress_0p75.yaml \
+  --config "../Good Models/PPO Wavy V2 Ent0p02 LR0p001 500k - 247.26 Reward/config.yaml" \
   --learning-rate 0.001 --ent-coef 0.02 \
   --save-freq 50000 --eval-freq 20000 --eval-episodes 5
 ```

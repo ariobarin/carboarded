@@ -11,10 +11,15 @@ Rules and conventions for anyone (human or AI) working on this project.
   - Simple track: 30k steps
   - Wavy V1: 50k steps
   - Wavy V2: 80k steps
-- Run 100-episode headless validation before declaring a result:
+- Run headless validation before declaring a result:
+  - **Deterministic runs** (`--deterministic`): 1 episode sufficient (all episodes identical)
+  - **Stochastic runs** (without `--deterministic`): 10-100 episodes to capture variance
   ```bash
   cd racing_sim
-  py scripts/validate.py --model MODEL_PATH --config CONFIG_PATH --episodes 100 --deterministic
+  # Deterministic - 1 episode is enough
+  py scripts/validate.py --model MODEL_PATH --config CONFIG_PATH --episodes 1 --deterministic
+  # Stochastic - use more episodes
+  py scripts/validate.py --model MODEL_PATH --config CONFIG_PATH --episodes 100
   ```
 - Record eval rewards at every checkpoint (10k intervals), not just the final value.
 - Always compare against the current best model for that algorithm/track combination.
@@ -75,7 +80,7 @@ When a model is superseded, move it to `Good Models/_archived/` and set its READ
   # Use instead: [recommended config]
   ```
 - Labels: DEPRECATED (superseded), UNVALIDATED (never tested), UNSTABLE (causes problems), UNTESTED (future use).
-- Currently there are 4 proven configs in configs/. Do not add new ones without validation.
+- Currently there is 1 active config in configs/ (physics_v2.yaml). Legacy configs live in configs/deprecated/legacy_2026_02/.
 
 ---
 
@@ -83,8 +88,8 @@ When a model is superseded, move it to `Good Models/_archived/` and set its READ
 
 - No emoji in documentation files. Use plain text markers like DONE, TODO, FAILED.
 - Do not create session-specific tracking files (experiment logs, execution readiness docs). These become stale immediately.
-- Keep CLAUDE.md under ~200 lines. It is a quick reference, not a comprehensive guide.
-- Put detailed findings in `Learnings/Phase One Summary.md` (or Phase Two when that begins).
+- Keep CLAUDE.md concise. It is a quick reference, not a comprehensive guide.
+- Put detailed findings in `Learnings/` (one document per research topic).
 - Put failure documentation in `Learnings/What Didnt Work.md`.
 - Reference STANDARDS.md for conventions rather than repeating them.
 
@@ -98,6 +103,39 @@ Before starting any training run:
 - **Compare apples-to-apples:** same config, reward scale, episode length across runs.
 - **One active config path** per run; print it in logs and reports.
 - **Keep a baseline PPO run** for each track revision to anchor progress.
+- **Default to fine-tuning from the strongest available model** unless there's a reason to re-train from scratch (e.g., dead neurons, exploding gradients, obvious policy corruption).
+
+---
+
+## Early Stopping Protocol
+
+**CRITICAL: Do not waste compute on failing runs. Stop early and try something different.**
+
+### Stop Immediately If:
+- **Ellipse/Wavy tracks:** `eval_reward < 50` after 100k steps (should be 150+ by then)
+- **Custom tracks (grid obs):** `eval_reward < 20` after 200k steps (custom tracks learn slower)
+- `eval_reward` drops > 100 points from peak in a single eval (catastrophic collapse)
+- `approx_kl > 0.5` for 3 consecutive epochs (policy exploding)
+- `explained_variance < -0.5` (value network is harmful)
+
+### Warning Signs (Monitor Closely):
+- `approx_kl > 0.1` (above target_kl but not catastrophic)
+- `eval_reward` variance > 50 between consecutive evals
+- `entropy` dropping below 0.5 (premature convergence)
+
+### How to Stop a Background Run:
+```bash
+# Find the process ID, then:
+# kill <PID>    (Linux/Mac)
+# taskkill /PID <PID>    (Windows)
+# Or press Ctrl+C in the training terminal
+```
+
+### After Stopping:
+1. Document why the run was stopped in the experiment notes
+2. Analyze what went wrong (check TensorBoard logs)
+3. Formulate a hypothesis for the next experiment
+4. Do NOT repeat the same configuration - try something different
 
 ---
 
@@ -105,7 +143,7 @@ Before starting any training run:
 
 DO:
 - Change one hyperparameter at a time
-- Run 100-episode validation before saving models
+- Run validation before saving models (1 ep deterministic, 10-100 ep stochastic)
 - Save exact training commands in model READMEs
 - Update CLAUDE.md when configs or best results change
 - Archive superseded models rather than deleting them

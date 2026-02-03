@@ -30,11 +30,11 @@
 | 100k | 131 (collapse) |
 
 ## Training
-**Config:** `configs/fast_iter_v3_complex_wavy_v2_progress_0p7.yaml`
+**Config:** `../Good Models/_archived/SAC Wavy V2 BatchSize512 Peak209/config.yaml`
 **Command:**
 ```bash
 py scripts/train.py --algo sac --preset fast --total-timesteps 100000 \
-  --config configs/fast_iter_v3_complex_wavy_v2_progress_0p7.yaml \
+  --config ../Good Models/_archived/SAC Wavy V2 BatchSize512 Peak209/config.yaml \
   --eval-freq 10000 --eval-episodes 5 --learning-rate 0.003 --ent-coef auto \
   --learning-starts 0 --batch-size 512 --buffer-size 200000 --gradient-steps 4 \
   --n-envs 4 --vec-env subproc

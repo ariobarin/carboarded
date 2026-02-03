@@ -2,41 +2,23 @@
 
 import argparse
 import sys
-import zipfile
 from pathlib import Path
+
 import numpy as np
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from stable_baselines3 import PPO, SAC
 from racing_sim.envs.racing_env import RacingEnv
 from racing_sim.config.config import EnvConfig
-
-
-def detect_algo_from_model(model_path: Path) -> str:
-    """Auto-detect algorithm type from saved model file."""
-    try:
-        with zipfile.ZipFile(model_path, "r") as zf:
-            if "data" in zf.namelist():
-                import json
-
-                with zf.open("data") as f:
-                    data = json.load(f)
-                    policy_class = data.get("policy_class", "")
-                    if "SAC" in str(policy_class) or "sac" in str(policy_class).lower():
-                        return "sac"
-                    if "PPO" in str(policy_class) or "ppo" in str(policy_class).lower():
-                        return "ppo"
-    except Exception:
-        pass
-    return "ppo"
+from racing_sim.utils.model import load_model
 
 
 def run_validation(
     model_path: str,
     config_path: str,
     num_episodes: int = 100,
-    deterministic: bool = True,
+    deterministic: bool = False,
+    algo: str = "auto",
 ):
     """Run headless validation."""
     model_path = Path(model_path)
@@ -52,14 +34,11 @@ def run_validation(
     # Create environment
     env = RacingEnv(config=config, render_mode=None)
 
-    # Detect and load model
-    algo = detect_algo_from_model(model_path)
-    if algo == "ppo":
-        model = PPO.load(str(model_path))
-    else:
-        model = SAC.load(str(model_path))
+    # Load model using shared utility
+    model = load_model(model_path, algo=algo)
+    algo_name = "PPO" if type(model).__name__ == "PPO" else "SAC"
 
-    print(f"Validating {algo.upper()} model: {model_path}")
+    print(f"Validating {algo_name} model: {model_path}")
     print(f"Episodes: {num_episodes}, Deterministic: {deterministic}")
     print("-" * 50)
 
@@ -103,12 +82,22 @@ def run_validation(
     return episode_rewards
 
 
-if __name__ == "__main__":
+def build_arg_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser()
     parser.add_argument("--model", type=str, required=True)
     parser.add_argument("--config", type=str, default=None)
     parser.add_argument("--episodes", type=int, default=100)
-    parser.add_argument("--deterministic", action="store_true", default=True)
-    args = parser.parse_args()
+    parser.add_argument("--deterministic", action="store_true", default=False)
+    parser.add_argument(
+        "--algo",
+        type=str,
+        default="auto",
+        choices=["auto", "ppo", "sac"],
+        help="Algorithm type (auto-detects if not specified)",
+    )
+    return parser
 
-    run_validation(args.model, args.config, args.episodes, args.deterministic)
+
+if __name__ == "__main__":
+    args = build_arg_parser().parse_args()
+    run_validation(args.model, args.config, args.episodes, args.deterministic, args.algo)

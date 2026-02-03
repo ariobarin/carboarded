@@ -2,38 +2,20 @@
 
 import argparse
 import sys
-import zipfile
 from pathlib import Path
+from typing import Callable, List, Optional
 
 # Add parent directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import numpy as np
-from stable_baselines3 import PPO, SAC
 
 from racing_sim.envs.racing_env import RacingEnv
 from racing_sim.config.config import EnvConfig
-
-
-def detect_algo_from_model(model_path: Path) -> str:
-    """Auto-detect algorithm type from saved model file."""
-    try:
-        with zipfile.ZipFile(model_path, "r") as zf:
-            if "data" in zf.namelist():
-                import json
-
-                with zf.open("data") as f:
-                    data = json.load(f)
-                    # Check policy_class or other indicators
-                    policy_class = data.get("policy_class", "")
-                    if "SAC" in str(policy_class) or "sac" in str(policy_class).lower():
-                        return "sac"
-                    if "PPO" in str(policy_class) or "ppo" in str(policy_class).lower():
-                        return "ppo"
-    except Exception:
-        pass
-    # Default to ppo if can't detect
-    return "ppo"
+from racing_sim.physics.car import Car
+from racing_sim.sensors.lidar import Lidar
+from racing_sim.sensors.grid import compute_grid
+from racing_sim.utils.model import detect_algo_from_model, load_model
 
 
 def parse_args():
@@ -91,283 +73,254 @@ def parse_args():
     return parser.parse_args()
 
 
-def run_human_control(env: RacingEnv, num_episodes: int):
+def print_episode_stats(episode_rewards: List[float]) -> None:
+    """Print summary statistics for completed episodes."""
+    if not episode_rewards:
+        return
+    print("\n" + "=" * 40)
+    print("Statistics:")
+    print(f"  Episodes: {len(episode_rewards)}")
+    print(f"  Mean reward: {np.mean(episode_rewards):.2f}")
+    print(f"  Std reward: {np.std(episode_rewards):.2f}")
+    print(f"  Min reward: {np.min(episode_rewards):.2f}")
+    print(f"  Max reward: {np.max(episode_rewards):.2f}")
+
+
+def run_episodes(
+    env: RacingEnv,
+    num_episodes: int,
+    get_action: Callable[[np.ndarray, RacingEnv], np.ndarray],
+    pre_step: Optional[Callable[[RacingEnv], None]] = None,
+    action_key: str = "human",
+) -> List[float]:
+    """Unified episode runner for both human and model control.
+
+    Args:
+        env: The racing environment.
+        num_episodes: Number of episodes to run.
+        get_action: Callable that takes (obs, env) and returns an action.
+        pre_step: Optional callable to run before each step (e.g., render for human control).
+        action_key: Key for renderer action bars ("human" or "ai").
+
+    Returns:
+        List of total rewards for each completed episode.
+    """
+    episode_rewards = []
+
+    for episode in range(num_episodes):
+        obs, info = env.reset()
+        done = False
+        total_reward = 0.0
+
+        print(f"Episode {episode + 1}/{num_episodes}")
+
+        while not done:
+            # Optional pre-step hook (render before action for human control)
+            if pre_step:
+                pre_step(env)
+
+            # Handle quit/reset events
+            if not env.renderer.handle_events():
+                print("\nQuit requested")
+                env.close()
+                return episode_rewards
+
+            if env.renderer.was_random_start_toggle_requested():
+                env.config.random_start = not env.config.random_start
+                state = "enabled" if env.config.random_start else "disabled"
+                print(f"Random starts {state} (apply on next reset)")
+
+            if env.renderer.was_reset_requested():
+                obs, info = env.reset()
+                done = False
+                total_reward = 0.0
+                continue
+
+            # Get and execute action
+            action = get_action(obs, env)
+
+            # Update action bars on renderer
+            env.renderer.last_actions = {
+                action_key: (float(action[0]), float(action[1]))
+            }
+
+            obs, reward, terminated, truncated, info = env.step(action)
+            done = terminated or truncated
+            total_reward += reward
+
+            # Render after step (for model control the action is visualized)
+            if not pre_step:
+                env.render()
+
+        episode_rewards.append(total_reward)
+        print(
+            f"  Reward: {total_reward:.2f}, Checkpoints: {info['checkpoints_passed']}"
+        )
+
+        if info["collided"]:
+            print("  Crashed!")
+
+    return episode_rewards
+
+
+def get_human_action(obs: np.ndarray, env: RacingEnv) -> np.ndarray:
+    """Get action from keyboard input."""
+    steering, throttle = env.renderer.get_keyboard_input()
+    return np.array([steering, throttle], dtype=np.float32)
+
+
+def make_model_action_fn(model, deterministic: bool = True):
+    """Create an action function for a trained model."""
+    def get_action(obs: np.ndarray, env: RacingEnv) -> np.ndarray:
+        action, _ = model.predict(obs, deterministic=deterministic)
+        return action
+    return get_action
+
+
+def run_human_control(env: RacingEnv, num_episodes: int) -> List[float]:
     """Run the environment with keyboard control."""
     print("\nControls:")
     print("  Arrow keys or WASD: Steer and accelerate")
     print("  R: Reset race")
+    print("  T: Toggle random starts")
     print("  L: Toggle lidar visualization")
     print("  G: Toggle grid visualization")
+    print("  C: Toggle car POV mode (see what AI sees)")
     print("  ESC: Quit")
     print()
 
-    episode_rewards = []
+    def pre_step(env):
+        env.render()
 
-    for episode in range(num_episodes):
-        obs, info = env.reset()
-        done = False
-        total_reward = 0.0
-
-        print(f"Episode {episode + 1}/{num_episodes}")
-
-        while not done:
-            # Render first to process events
-            env.render()
-
-            # Check for quit
-            if not env.renderer.handle_events():
-                print("\nQuit requested")
-                env.close()
-                return episode_rewards
-
-            # Check for reset
-            if env.renderer.was_reset_requested():
-                obs, info = env.reset()
-                done = False
-                total_reward = 0.0
-                continue
-
-            # Get keyboard input
-            steering, throttle = env.renderer.get_keyboard_input()
-            action = np.array([steering, throttle], dtype=np.float32)
-
-            # Step environment
-            obs, reward, terminated, truncated, info = env.step(action)
-            done = terminated or truncated
-            total_reward += reward
-
-        episode_rewards.append(total_reward)
-        print(
-            f"  Reward: {total_reward:.2f}, Checkpoints: {info['checkpoints_passed']}"
-        )
-
-        if info["collided"]:
-            print("  Crashed!")
-
-    return episode_rewards
+    return run_episodes(env, num_episodes, get_human_action, pre_step=pre_step)
 
 
 def run_trained_model(
     env: RacingEnv, model, num_episodes: int, deterministic: bool = True
-):
+) -> List[float]:
     """Run the environment with a trained model."""
     print(
         f"\nRunning trained model ({'deterministic' if deterministic else 'stochastic'} actions)"
     )
-
-    episode_rewards = []
-
-    for episode in range(num_episodes):
-        obs, info = env.reset()
-        done = False
-        total_reward = 0.0
-
-        print(f"Episode {episode + 1}/{num_episodes}")
-
-        while not done:
-            # Get action from model
-            action, _ = model.predict(obs, deterministic=deterministic)
-
-            # Step environment
-            obs, reward, terminated, truncated, info = env.step(action)
-            done = terminated or truncated
-            total_reward += reward
-
-            # Render
-            env.render()
-
-            # Check for quit
-            if not env.renderer.handle_events():
-                print("\nQuit requested")
-                env.close()
-                return episode_rewards
-
-            # Check for reset
-            if env.renderer.was_reset_requested():
-                obs, info = env.reset()
-                done = False
-                total_reward = 0.0
-                continue
-
-        episode_rewards.append(total_reward)
-        print(
-            f"  Reward: {total_reward:.2f}, Checkpoints: {info['checkpoints_passed']}"
-        )
-
-        if info["collided"]:
-            print("  Crashed!")
-
-    return episode_rewards
+    action_fn = make_model_action_fn(model, deterministic)
+    return run_episodes(env, num_episodes, action_fn, action_key="ai")
 
 
-def run_race_mode(env: RacingEnv, model, deterministic: bool = True):
-    """Race the human against a trained model (debug mode)."""
-    import pygame
-    import math
-    from racing_sim.physics.car import Car
-    from racing_sim.sensors.lidar import Lidar
-    from racing_sim.utils.progress import progress_delta
+def run_race_mode(env: RacingEnv, model, deterministic: bool = True) -> None:
+    """Race mode: human vs AI for debugging/visualization.
 
-    print("\nRace Mode (Debug)")
+    Simple visualization showing both cars. When human crashes, immediate reset.
+    AI car is "ghost" - visible but doesn't affect human's physics.
+    """
+    print("\nRace Mode (Human vs AI)")
     print("Controls: Arrow keys or WASD to drive")
     print("R: Reset race")
-    print("L: Toggle lidar visualization (AI only)")
-    print("G: Toggle grid visualization (AI only)")
+    print("T: Toggle random starts")
+    print("L: Toggle lidar visualization")
+    print("G: Toggle grid visualization")
     print("Blue = You, Red = AI")
     print("ESC to quit.\n")
 
-    # Create a second car for the AI in the same space
+    # Create a ghost AI car (no collision with human, just for visualization)
+    # Don't set up collision handler - it would override human car's handler
     ai_car = Car(
         env.space,
         env.config.car,
         position=(env.track.start_position.x, env.track.start_position.y),
         angle=env.track.start_angle,
+        setup_collision_handler=False,
     )
     ai_lidar = Lidar(env.space, env.config.lidar)
 
-    # Reset human car to start
-    env.car.reset(
-        position=(env.track.start_position.x, env.track.start_position.y),
-        angle=env.track.start_angle,
+    # Register collision handler for AI car using a separate collision type
+    # (collision_type=3 avoids overwriting the human car's (1, 2) handler)
+    ai_car.shape.collision_type = 3
+    ai_car.sensor_only = True
+    env.space.on_collision(
+        collision_type_a=3,
+        collision_type_b=2,
+        begin=ai_car._on_collision_begin,
+        data={"car": ai_car},
     )
 
-    # Track state for reward calculation
-    human_checkpoint = env.track.get_checkpoint_index(env.car.position)
-    ai_checkpoint = env.track.get_checkpoint_index(ai_car.position)
-    human_reward = 0.0
-    ai_reward = 0.0
+    # Initialize pygame
+    env.renderer._init_pygame()
 
-    def get_progress_angle(position):
-        delta = position - env.track.center
-        angle = math.atan2(delta.y, delta.x)
-        return angle if angle >= 0 else angle + math.tau
+    def reset_race():
+        env.reset()
+        env.car.sensor_only = True
+        ai_car.reset(
+            position=(env.car.position.x, env.car.position.y),
+            angle=env.car.angle,
+        )
 
-    human_progress_angle = get_progress_angle(env.car.position)
-    ai_progress_angle = get_progress_angle(ai_car.position)
+    reset_race()
 
     running = True
-
     while running:
-        # Handle events (must init pygame first)
-        env.renderer._init_pygame()
+        # Handle events first
         if not env.renderer.handle_events():
-            print("Quit requested")
+            print("\nQuit requested")
             break
 
-        # Check for reset
+        if env.renderer.was_random_start_toggle_requested():
+            env.config.random_start = not env.config.random_start
+            state = "enabled" if env.config.random_start else "disabled"
+            print(f"Random starts {state} (apply on next reset)")
+
+        # Handle reset request
         if env.renderer.was_reset_requested():
-            env.car.reset(
-                position=(env.track.start_position.x, env.track.start_position.y),
-                angle=env.track.start_angle,
-            )
-            ai_car.reset(
-                position=(env.track.start_position.x, env.track.start_position.y),
-                angle=env.track.start_angle,
-            )
-            human_checkpoint = env.track.get_checkpoint_index(env.car.position)
-            ai_checkpoint = env.track.get_checkpoint_index(ai_car.position)
-            human_progress_angle = get_progress_angle(env.car.position)
-            ai_progress_angle = get_progress_angle(ai_car.position)
-            human_reward = 0.0
-            ai_reward = 0.0
+            reset_race()
             continue
 
-        # Human input
+        # Get human input
         steering, throttle = env.renderer.get_keyboard_input()
+        action = np.array([steering, throttle], dtype=np.float32)
 
-        # AI input
-        ai_obs = ai_lidar.scan(ai_car)
+        # Step environment (sensor_only mode prevents car from stopping on collision)
+        obs, reward, terminated, truncated, info = env.step(action)
+
+        # If human crashed, reset immediately (before rendering the crash)
+        if info["collided"]:
+            print(f"Crashed! (Checkpoints: {info['checkpoints_passed']})")
+            reset_race()
+            continue
+
+        # If AI crashed, reset both cars
+        if ai_car.collided:
+            print(f"AI Crashed! (Checkpoints: {info['checkpoints_passed']})")
+            reset_race()
+            continue
+
+        # Get AI observation based on config (lidar or grid)
+        if env.config.obs_type == "grid":
+            grid = compute_grid(
+                ai_car.position, ai_car.angle, env.track, env.config.grid
+            )
+            ai_obs = grid[:, :, np.newaxis]  # Shape: (36, 36, 1) for CNN
+        else:
+            ai_obs = ai_lidar.scan(ai_car)  # Shape: (5,) for lidar
+
+        # Get AI action and apply to ghost car
         ai_action, _ = model.predict(ai_obs, deterministic=deterministic)
-
-        # Apply controls
-        env.car.apply_control(steering, throttle)
         ai_car.apply_control(float(ai_action[0]), float(ai_action[1]))
+        ai_car.update_friction(env.config.physics_dt)
 
-        # Update friction
-        env.car.update_friction()
-        ai_car.update_friction()
+        # Update action bars for both players
+        env.renderer.last_actions = {
+            "human": (float(action[0]), float(action[1])),
+            "ai": (float(ai_action[0]), float(ai_action[1])),
+        }
 
-        # Step physics
-        env.space.step(env.config.physics_dt)
-
-        # Calculate rewards (simplified version of env reward)
-        for car, checkpoint, progress_angle, is_human in [
-            (env.car, human_checkpoint, human_progress_angle, True),
-            (ai_car, ai_checkpoint, ai_progress_angle, False),
-        ]:
-            reward = env.config.time_penalty
-            reward += env.config.speed_bonus_scale * (
-                car.speed / env.config.car.max_speed
-            )
-
-            new_cp, crossed = env.track.get_progress(car.position, checkpoint)
-            if crossed:
-                reward += env.config.checkpoint_reward
-                if is_human:
-                    human_checkpoint = new_cp
-                else:
-                    ai_checkpoint = new_cp
-
-            if env.config.progress_reward_scale != 0.0:
-                new_angle = get_progress_angle(car.position)
-                delta = progress_delta(progress_angle, new_angle)
-                reward += env.config.progress_reward_scale * delta
-                if is_human:
-                    human_progress_angle = new_angle
-                else:
-                    ai_progress_angle = new_angle
-
-            if car.collided:
-                reward += env.config.collision_penalty
-
-            if is_human:
-                human_reward += reward
-            else:
-                ai_reward += reward
-
-        # Reset on collision
-        if env.car.collided or ai_car.collided:
-            env.car.reset(
-                position=(env.track.start_position.x, env.track.start_position.y),
-                angle=env.track.start_angle,
-            )
-            ai_car.reset(
-                position=(env.track.start_position.x, env.track.start_position.y),
-                angle=env.track.start_angle,
-            )
-            human_checkpoint = env.track.get_checkpoint_index(env.car.position)
-            ai_checkpoint = env.track.get_checkpoint_index(ai_car.position)
-            human_progress_angle = get_progress_angle(env.car.position)
-            ai_progress_angle = get_progress_angle(ai_car.position)
-
-        # Render
-        env.renderer.screen.fill(env.renderer.config.background_color)
-        env.renderer._render_track(env.track)
-        env.renderer._render_checkpoints(env.track)
-        if env.renderer._show_lidar:
-            env.renderer._render_lidar(ai_lidar)  # Show AI's lidar
-        if env.renderer._show_grid:
-            if env.renderer._grid_debug_mode:
-                env.renderer._render_grid_worldspace(ai_car, env.track)
-            else:
-                env.renderer._render_grid_overlay(ai_car, env.track)
-        env.renderer._render_car(env.car, color=(100, 150, 255))  # Blue for human
-        env.renderer._render_car(ai_car, color=(255, 100, 100))  # Red for AI
-
-        # HUD with rewards
-        font = pygame.font.Font(None, 24)
-        texts = [
-            f"You (Blue): {human_reward:.1f}",
-            f"AI (Red): {ai_reward:.1f}",
-        ]
-        y = 10
-        for text in texts:
-            surface = font.render(text, True, (255, 255, 255))
-            env.renderer.screen.blit(surface, (10, y))
-            y += 20
-
-        pygame.display.flip()
-        env.renderer.clock.tick(env.renderer.config.fps)
+        # Render with AI's sensors visualized
+        env.renderer.render(
+            car=env.car,
+            track=env.track,
+            lidar=ai_lidar,
+            info=info,
+            ai_car=ai_car,
+            sensor_car=ai_car,
+        )
 
     env.close()
 
@@ -376,7 +329,6 @@ def main():
     """Main play function."""
     args = parse_args()
 
-    # Validate race mode
     if args.race and not args.model:
         print("Error: --race requires --model to specify the AI opponent")
         return
@@ -387,7 +339,7 @@ def main():
     else:
         config = EnvConfig()
 
-    # Disable random start for play/race modes
+    # Disable random start by default for play/race modes (toggle with T)
     config.random_start = False
 
     # Enable CNN grid observations if requested
@@ -409,27 +361,16 @@ def main():
     print("=" * 40)
 
     if args.model:
-        # Load trained model
         model_path = Path(args.model)
-        if not model_path.exists():
-            print(f"Error: Model not found at {model_path}")
-            return
-
-        # Auto-detect algorithm if needed
         algo = args.algo
         if algo == "auto":
             algo = detect_algo_from_model(model_path)
             print(f"Auto-detected algorithm: {algo.upper()}")
 
         print(f"Loading model from {model_path}")
-
-        if algo == "ppo":
-            model = PPO.load(str(model_path))
-        else:
-            model = SAC.load(str(model_path))
+        model = load_model(model_path, algo=algo)
 
         if args.race:
-            # Race mode: human vs AI
             run_race_mode(env, model, args.deterministic)
             return
         else:
@@ -437,19 +378,11 @@ def main():
                 env, model, args.episodes, args.deterministic
             )
     else:
-        # Human control
         print("Mode: Human control")
         episode_rewards = run_human_control(env, args.episodes)
 
     # Print statistics
-    if episode_rewards:
-        print("\n" + "=" * 40)
-        print("Statistics:")
-        print(f"  Episodes: {len(episode_rewards)}")
-        print(f"  Mean reward: {np.mean(episode_rewards):.2f}")
-        print(f"  Std reward: {np.std(episode_rewards):.2f}")
-        print(f"  Min reward: {np.min(episode_rewards):.2f}")
-        print(f"  Max reward: {np.max(episode_rewards):.2f}")
+    print_episode_stats(episode_rewards)
 
     env.close()
 

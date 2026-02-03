@@ -9,12 +9,12 @@
 - **Success Rate:** 100% over 10 episodes
 
 ## Config
-`configs/wavy_v2_cnn.yaml`
+`config.yaml` (legacy snapshot)
 
 ## Training Command
 ```bash
 py scripts/train.py --algo ppo --preset fast --total-timesteps 300000 \
-  --cnn --config configs/wavy_v2_cnn.yaml \
+  --cnn --config "../Good Models/PPO CNN Wavy V2 LR0.0003 - 249.43 Reward/config.yaml" \
   --learning-rate 0.0003 --ent-coef 0.02 \
   --save-freq 50000 --eval-freq 20000 --eval-episodes 5 --seed 42
 ```
@@ -37,10 +37,10 @@ than 9-ray lidar while being more generalizable to visual inputs.
 cd racing_sim
 
 # Play
-py scripts/play.py --model "../Good Models/PPO CNN Wavy V2 LR0.0003 - 249.43 Reward/best_model.zip" --config configs/wavy_v2_cnn.yaml --show-grid --deterministic
+py scripts/play.py --model "../Good Models/PPO CNN Wavy V2 LR0.0003 - 249.43 Reward/best_model.zip" --config "../Good Models/PPO CNN Wavy V2 LR0.0003 - 249.43 Reward/config.yaml" --show-grid --deterministic
 
 # Validate
-py scripts/validate.py --model "../Good Models/PPO CNN Wavy V2 LR0.0003 - 249.43 Reward/best_model.zip" --config configs/wavy_v2_cnn.yaml --episodes 100 --deterministic
+py scripts/validate.py --model "../Good Models/PPO CNN Wavy V2 LR0.0003 - 249.43 Reward/best_model.zip" --config "../Good Models/PPO CNN Wavy V2 LR0.0003 - 249.43 Reward/config.yaml" --episodes 1 --deterministic
 ```
 
 ## Files

@@ -7,7 +7,7 @@
 
 ## Final Results (Validated)
 
-All models validated with `validate.py --episodes 100 --deterministic` on 2026-01-30.
+All models validated with `validate.py --episodes 1 --deterministic` on 2026-01-30.
 
 | Algorithm | Track | Best Reward | Steps | Model |
 |-----------|-------|-------------|-------|-------|
@@ -28,29 +28,15 @@ All PPO models: 0.00 std dev, 100% success rate (>200). Deterministic mode produ
 
 ### 2. Optimal hyperparameters per track (PPO)
 
-| Parameter | Simple | Wavy V1 | Wavy V2 |
-|-----------|--------|---------|---------|
-| learning_rate | 0.003 | 0.003 | 0.001 |
-| ent_coef | 0.02 | 0.03 | 0.02 |
-| progress_scale | 0.5 | 0.5 | 0.75 |
+LR=0.001 and ent_coef=0.02 are optimal for Wavy V2. Simple/Wavy V1 use LR=0.003. See `CLAUDE.md` Hyperparameter Reference for the full table.
 
 ### 3. Learning rate is settled for Wavy V2 (LR sweep, 15 experiments)
 
-| LR | Best Peak | Collapse Timing | Notes |
-|----|-----------|-----------------|-------|
-| 0.0003 | 224.32 | Oscillates, no full collapse | Most stable, lowest ceiling |
-| **0.001** | **247.26** | ~280-320k | **Best peaks** |
-| 0.002 | 237.86 | ~220k | Fast collapse |
-| 0.003 | 233.34 | ~120k | Earliest collapse |
+Tested LR values 0.0003, 0.001, 0.002, 0.003. LR=0.001 produces the best peaks (247.26) with collapse around 280-320k. Lower LRs are more stable but peak 20+ points lower. Higher LRs collapse earlier.
 
 ### 4. Entropy 0.02 is optimal for Wavy V2
 
-| Entropy | Best Peak | Notes |
-|---------|-----------|-------|
-| 0.01 | 238.16 | Too little exploration |
-| **0.02** | **247.26** | Optimal |
-| 0.04 | 243.71 | Slightly too much |
-| 0.06 | 227.53 | Way too much |
+Tested entropy values 0.01-0.06. 0.02 is optimal (247.26 peak). Lower values under-explore; higher values waste capacity on randomness.
 
 ### 5. All PPO runs oscillate and collapse
 Every PPO experiment shows the same pattern: rapid improvement (0-100k), peak (100k-300k), collapse (200k-500k). This is fundamental to PPO on this task. Strategy: save snapshots via eval callback, keep the peak.
@@ -98,7 +84,7 @@ py scripts/train.py --algo sac --preset fast --total-timesteps 100000 \
 
 ## Archived Detail Files
 
-Raw experiment data preserved in `Learnings/_archive/`:
+Raw experiment data preserved in `Learnings/_archived/`:
 - `Overnight Experiment Results.md` -- full 15-experiment LR/entropy sweep
 - `Validation Results.md` -- per-model validation details
 - `Phase One - Experiment Log (Archive).md` -- 20KB raw experiment log

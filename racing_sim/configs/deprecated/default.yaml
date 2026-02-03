@@ -1,6 +1,6 @@
 # DEPRECATED - DO NOT USE
 # Reason: Slowdown penalty and time penalty hurt convergence. Superseded by optimized configs.
-# Use instead: fast_iter_v3_complex_progress_0p5.yaml (simple track)
+# Use instead: physics_v2.yaml (new physics baseline)
 # =============================================================================
 # DEFAULT CONFIGURATION - Baseline Reference
 # =============================================================================
@@ -14,12 +14,17 @@ car:
   mass: 1.0
   width: 40.0
   height: 20.0
-  max_speed: 1000.0
-  engine_power: 500.0
+  max_speed: 1400.0
+  engine_power: 700.0
+  accel_boost: 0.6
   lateral_friction: 0.5
   rolling_friction: 0.05
+  air_drag: 0.0025
   angular_damping: 0.7
   steering_power: 500.0
+  steering_speed_ref: 200.0
+  steering_min_factor: 0.35
+  turning_drag: 0.03
 
 lidar:
   num_rays: 9
@@ -49,6 +54,10 @@ physics_dt: 0.016666666666666666  # 1/60
 
 # Episode settings
 max_episode_steps: 1000
+
+# Randomization settings
+random_start: true
+random_start_lateral_fraction: 1.0
 
 # Reward settings
 checkpoint_reward: 1.0

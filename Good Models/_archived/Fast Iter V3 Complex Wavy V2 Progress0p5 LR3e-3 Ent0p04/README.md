@@ -15,11 +15,11 @@
 | Config progress scale | 0.5 (suboptimal for this track) |
 
 ## Training
-**Config:** `configs/fast_iter_v3_complex_wavy_v2_progress_0p7.yaml`
+**Config:** `../Good Models/_archived/Fast Iter V3 Complex Wavy V2 Progress0p5 LR3e-3 Ent0p04/config.yaml`
 **Command:**
 ```bash
 py scripts/train.py --algo ppo --preset fast --total-timesteps 80000 \
-  --config configs/fast_iter_v3_complex_wavy_v2_progress_0p7.yaml \
+  --config ../Good Models/_archived/Fast Iter V3 Complex Wavy V2 Progress0p5 LR3e-3 Ent0p04/config.yaml \
   --eval-freq 10000 --eval-episodes 5 --learning-rate 0.003 --ent-coef 0.04
 ```
 

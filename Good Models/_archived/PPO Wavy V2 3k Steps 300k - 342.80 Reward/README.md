@@ -9,12 +9,12 @@
 - **Mean Speed:** 152.2 (91.3% of terminal velocity)
 
 ## Config
-`configs/wavy_v2_progress_0p75_3k_steps.yaml`
+`../Good Models/_archived/PPO Wavy V2 3k Steps 300k - 342.80 Reward/config.yaml`
 
 ## Training Command
 ```bash
 py scripts/train.py --algo ppo --preset fast --total-timesteps 300000 \
-  --config configs/wavy_v2_progress_0p75_3k_steps.yaml \
+  --config ../Good Models/_archived/PPO Wavy V2 3k Steps 300k - 342.80 Reward/config.yaml \
   --learning-rate 0.001 --ent-coef 0.04 \
   --save-freq 50000 --eval-freq 30000 --eval-episodes 5
 ```

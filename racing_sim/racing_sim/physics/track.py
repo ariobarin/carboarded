@@ -155,27 +155,53 @@ class Track:
         index = int((angle / (2 * math.pi)) * num_checkpoints) % num_checkpoints
         return index
 
-    def get_progress(self, position: Vec2d, last_checkpoint: int) -> Tuple[int, bool]:
+    def get_progress(
+        self,
+        position: Vec2d,
+        last_checkpoint: int,
+        max_skip: int = 1,
+    ) -> Tuple[int, int]:
         """
-        Calculate progress and check if a new checkpoint was reached.
+        Calculate progress and count checkpoints passed.
 
         Args:
             position: Current position
             last_checkpoint: Previously reached checkpoint index
 
         Returns:
-            Tuple of (current_checkpoint_index, checkpoint_crossed)
+            Tuple of (current_checkpoint_index, checkpoints_passed)
         """
         current_checkpoint = self.get_checkpoint_index(position)
 
-        # Check if we've crossed into a new checkpoint
-        # Handle wraparound (from last checkpoint back to first)
         num_checkpoints = len(self.checkpoints)
-        expected_next = (last_checkpoint + 1) % num_checkpoints
+        if num_checkpoints == 0:
+            return current_checkpoint, 0
 
-        crossed = (current_checkpoint == expected_next)
+        forward_distance = (current_checkpoint - last_checkpoint) % num_checkpoints
+        if forward_distance == 0:
+            return current_checkpoint, 0
 
-        return current_checkpoint, crossed
+        max_skip = max(1, int(max_skip))
+        if forward_distance <= max_skip:
+            return current_checkpoint, int(forward_distance)
+
+        return current_checkpoint, 0
+
+    def progress_coordinate(self, position: Vec2d) -> float:
+        """Return a continuous progress coordinate for reward shaping."""
+        delta = position - self.center
+        angle = math.atan2(delta.y, delta.x)
+        if angle < 0:
+            angle += math.tau
+        return angle
+
+    def progress_period(self) -> float:
+        """Return the wrap-around period for progress coordinates."""
+        return math.tau
+
+    def progress_scale(self) -> float:
+        """Return scale factor to keep progress in angle-equivalent units."""
+        return 1.0
 
     def is_on_track(self, position: Vec2d) -> bool:
         """
