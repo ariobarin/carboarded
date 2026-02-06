@@ -54,6 +54,72 @@ Two configurations found to matter:
 - **1M steps was necessary** for most tracks; v1 baselines stopped too early.
 - Track2 exhibits classic PPO collapse pattern: peaks then drops sharply. Always save best checkpoint.
 
+## PPO-Adjacent Experiments (v3)
+
+GRPO-inspired experiments on the two worst-performing tracks (track3=23.13, track1=25.14).
+All runs: 1M steps, 1 env, linear LR, eval-freq 10000, eval-episodes 3, validated with 3 deterministic episodes.
+
+### Experiment 1: Advantage Normalization Off
+Disabled SB3's per-minibatch advantage normalization (`normalize_advantage=False`) to preserve absolute advantage magnitude.
+
+| Track | Run dir | Validation (3 ep) | Baseline | Delta |
+|-------|---------|-------------------|----------|-------|
+| track3 | `models/ppo_20260205_191005` | 1.15 | 23.13 | -95% |
+| track1 | `models/ppo_20260205_191009` | 25.09 | 25.14 | ~0% |
+
+Result: Catastrophic on track3, neutral on track1. Advantage normalization is clearly necessary for hard tracks -- raw advantages have high variance that destabilizes learning.
+
+### Experiment 2: More Epochs + Tighter Clipping
+`n_epochs=10` (vs 5), `clip_range=0.1` (vs 0.2), `target_kl=0.02` (vs 0.05). More passes through rollout data with tighter policy constraints.
+
+| Track | Run dir | Validation (3 ep) | Baseline | Delta |
+|-------|---------|-------------------|----------|-------|
+| track3 | `models/ppo_20260205_191013` | 18.90 | 23.13 | -18% |
+| track1 | `models/ppo_20260205_191018` | 21.87 | 25.14 | -13% |
+
+Result: Worse on both tracks. Tighter clipping likely prevents the policy from making large enough updates to escape local optima on hard tracks.
+
+### Experiment 3: Larger Rollouts
+`n_steps=2048` (vs 1024). Longer rollouts for more diverse experience per update.
+
+| Track | Run dir | Validation (3 ep) | Baseline | Delta |
+|-------|---------|-------------------|----------|-------|
+| track3 | `models/ppo_20260205_191023` | 20.94 | 23.13 | -9% |
+| track1 | `models/ppo_20260205_191028` | **28.41** | 25.14 | **+13%** |
+
+Result: Mixed. Hurt track3 slightly but improved track1 meaningfully. Larger rollouts may help tracks where the car needs to see more of the circuit per update to learn coherent strategies.
+
+### Experiment 4: Reward Shaping
+Higher reward scales: `progress_reward_scale=0.65` (vs 0.5), `speed_bonus_scale=0.03` (vs 0.01). Trained on modified configs (`track{1,3}_reward_exp.yaml`).
+
+| Track | Run dir | Validation (3 ep, reward config) | Validation (3 ep, standard config) | Baseline | Delta (std) |
+|-------|---------|----------------------------------|-------------------------------------|----------|-------------|
+| track3 | `models/ppo_20260205_191033` | 18.57 | -- | 23.13 | -20% |
+| track1 | `models/ppo_20260205_191037` | 32.80 | **32.80** | 25.14 | **+30%** |
+
+Result: Track1 reward-shaped model achieves 32.80 even when evaluated against the standard reward config -- a genuine +30% improvement in driving quality. Track3 still resists improvement.
+
+### Summary
+
+| Experiment | track3 | track1 |
+|------------|--------|--------|
+| v2 baseline | 23.13 | 25.14 |
+| No adv norm | 1.15 (-95%) | 25.09 (~0%) |
+| Epochs+clip | 18.90 (-18%) | 21.87 (-13%) |
+| n_steps=2048 | 20.94 (-9%) | **28.41 (+13%)** |
+| Reward shaping | 18.57 (-20%) | **32.80 (+30%)** |
+
+**New track1 best: 32.80** (reward shaping, `models/ppo_20260205_191037`). Runner-up: 28.41 (larger rollouts).
+
+Track3 remains the hardest track. None of the GRPO-inspired modifications improved it -- all four experiments scored worse than the v2 baseline. Track3 likely needs architectural changes (CNN obs, curriculum, or track geometry edits) rather than PPO hyperparameter tuning.
+
+### Experiment Findings
+- Advantage normalization is essential; disabling it causes collapse on hard tracks.
+- Tighter clipping + more epochs hurts hard tracks (prevents escaping local optima).
+- Larger rollouts (2048 vs 1024) help track1 but not track3.
+- Richer reward signal (higher progress + speed bonus) produced the biggest gain on track1 (+30%) and the improvement is real (validated on standard config).
+- Track3 is resistant to all PPO hyperparameter changes tested.
+
 ## Notes
 - All config snapshots and READMEs are in `Good Models/` (current physics).
 - Model weights (`best_model.zip`) are present locally but excluded from git by `.gitignore`.

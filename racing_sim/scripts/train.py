@@ -228,6 +228,11 @@ def build_arg_parser() -> argparse.ArgumentParser:
         help="Disable progress bar"
     )
     parser.add_argument(
+        "--no-normalize-advantage",
+        action="store_true",
+        help="Disable PPO advantage normalization (keeps raw advantage magnitudes)"
+    )
+    parser.add_argument(
         "--load-model",
         type=str,
         default=None,
@@ -781,10 +786,15 @@ def main():
     if args.algo == "ppo":
         from stable_baselines3 import PPO
 
+        ppo_extra = {}
+        if args.no_normalize_advantage:
+            ppo_extra["normalize_advantage"] = False
+            print("Advantage normalization: disabled")
         model = PPO(
             policy=policy,
             env=env,
             **training_kwargs,
+            **ppo_extra,
             policy_kwargs=policy_kwargs if policy_kwargs else None,
             verbose=1,
             tensorboard_log=tensorboard_log,

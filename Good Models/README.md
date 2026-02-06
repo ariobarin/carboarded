@@ -10,7 +10,7 @@ Baselines for the current physics model using the custom track configs in `racin
 | PPO Simple Custom Track - 30.59 Reward | simple | 30.59 | 440k |
 | PPO Supersimple Custom Track - 47.31 Reward | supersimple | 47.31 | ~890k |
 | PPO Square Test Custom Track - 63.92 Reward | square_test | 63.92 | ~790k |
-| PPO Track1 Custom Track - 25.14 Reward | track1 | 25.14 | ~630k |
+| PPO Track1 Custom Track - 32.80 Reward | track1 | 32.80 | ~1M |
 | PPO Track2 Custom Track - 37.00 Reward | track2 | 37.00 | 480k |
 | PPO Track3 Custom Track - 23.13 Reward | track3 | 23.13 | ~440k |
 | PPO Track4 Custom Track - 30.59 Reward | track4 | 30.59 | 640k |
