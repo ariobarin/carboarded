@@ -1,11 +1,14 @@
 """Model loading utilities shared across scripts."""
 
+from __future__ import annotations
+
 import json
 import zipfile
 from pathlib import Path
-from typing import Optional, Union
+from typing import TYPE_CHECKING, Optional, Union
 
-from stable_baselines3 import PPO, SAC
+if TYPE_CHECKING:
+    from stable_baselines3 import PPO, SAC
 
 
 def detect_algo_from_model(model_path: Path) -> str:
@@ -76,6 +79,8 @@ def load_model(
 
     if algo == "auto":
         algo = detect_algo_from_model(model_path)
+
+    from stable_baselines3 import PPO, SAC
 
     if algo == "ppo":
         return PPO.load(str(model_path), device=device)

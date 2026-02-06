@@ -128,6 +128,33 @@ Do not waste compute on failing runs. Stop early and try something different.
 
 ---
 
+## Research Methodology
+
+Follow this iterative process when investigating performance gaps or trying new approaches:
+
+1. **Establish baselines** -- run standard protocol on all tracks, record results in a comparison table.
+2. **Compare and identify gaps** -- where does performance fall short of expectations or prior baselines?
+3. **Form hypotheses** -- propose specific, testable explanations for the gaps. Each hypothesis should predict an observable outcome.
+4. **Validate hypotheses** -- use diagnostic tools (weight_stats.py, TensorBoard, play.py visual inspection) to check which hypotheses hold before committing training budget.
+5. **Design targeted experiments** -- one intervention per hypothesis, one change at a time. Use `--load-model` to fine-tune from baselines when testing incremental changes.
+6. **Run experiments and record results** -- compare against baselines using the same validation protocol.
+7. **Update findings** -- document what worked, what didn't, and why in the Learnings doc.
+8. **Iterate** -- new results may reveal new gaps or invalidate assumptions, restarting the cycle.
+
+### Diagnostic tools
+
+| Tool | Purpose |
+|------|---------|
+| `utils/weight_stats.py` (`summarize_tensors()`) | Per-parameter stats: dead filters, L2 norms, zeros fraction |
+| `utils/training_utils.py` (`compute_grad_norm()`) | Gradient magnitude during training |
+| `callbacks/grad_stats.py` | Training-time gradient diagnostics (via `--grad-log-freq`) |
+| `callbacks/rollout_stats.py` | Per-rollout stats (via `--rollout-log-freq`) |
+| TensorBoard logs (`logs/`) | Learning curves, eval rewards, losses, KL divergence |
+| `scripts/play.py --model MODEL` | Visual inspection with grid overlay |
+| `scripts/validate.py` | Quantitative comparison (deterministic or stochastic) |
+
+---
+
 ## DO / DON'T Quick Reference
 
 DO:

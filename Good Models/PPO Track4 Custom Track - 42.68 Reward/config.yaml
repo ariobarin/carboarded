@@ -30,23 +30,26 @@ lidar:
 track:
   track_type: custom
   custom:
-    width: 70.0
+    width: 100.0
     num_checkpoints: 64
     start_node_index: 0
     start_offset: 0.0
     nodes:
-      - x: 325.0
-        y: 250.0
-        radius: 50
-      - x: 725.0
-        y: 250.0
-        radius: 50
-      - x: 725.0
-        y: 350.0
-        radius: 50
-      - x: 325.0
-        y: 350.0
-        radius: 50
+      - x: 275.0
+        y: 125.0
+        radius: 213.39740185126206
+      - x: 875.0
+        y: 125.0
+        radius: 293.8891449159319
+      - x: 875.0
+        y: 725.0
+        radius: 68.42463479662892
+      - x: 600.0
+        y: 200.0
+        radius: 182.33853328574017
+      - x: 175.0
+        y: 475.0
+        radius: 66.45806419739104
 grid:
   grid_size: 36
   camera_height: 100.0
@@ -54,7 +57,7 @@ grid:
   fov_horizontal: 90.0
   near_distance: 30.0
   far_distance: 300.0
-obs_type: lidar
+obs_type: grid
 render:
   screen_width: 800
   screen_height: 600
@@ -100,8 +103,8 @@ physics_dt: 0.016666666666666666
 max_episode_steps: 512
 checkpoint_reward: 1.0
 max_checkpoint_skip: 10
-speed_bonus_scale: 0.01
-progress_reward_scale: 0.5
+speed_bonus_scale: 0.03
+progress_reward_scale: 0.65
 slowdown_distance: 0.0
 slowdown_penalty_scale: 0.0
 collision_penalty: -2.0

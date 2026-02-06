@@ -10,7 +10,6 @@ from racing_sim.physics.car import Car
 from racing_sim.physics.track import Track
 from racing_sim.editor.node_track import NodeTrack
 from racing_sim.sensors.lidar import Lidar
-from racing_sim.rendering.renderer import Renderer
 from racing_sim.sensors.grid import compute_grid
 from racing_sim.utils.progress import progress_delta_cyclic
 from racing_sim.utils.off_track import compute_off_track_state
@@ -137,6 +136,7 @@ class RacingEnv(gym.Env):
 
         # Create renderer if needed
         if self.render_mode is not None:
+            from racing_sim.rendering.renderer import Renderer
             self.renderer = Renderer(self.config.render, self.render_mode,
                                      grid_config=self.config.grid)
 

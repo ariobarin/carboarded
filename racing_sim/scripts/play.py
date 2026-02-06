@@ -15,7 +15,6 @@ from racing_sim.config.defaults import resolve_env_config
 from racing_sim.physics.car import Car
 from racing_sim.sensors.lidar import Lidar
 from racing_sim.sensors.grid import compute_grid
-from racing_sim.utils.model import detect_algo_from_model, infer_obs_type, load_model
 
 
 def parse_args():
@@ -347,6 +346,8 @@ def main():
     model = None
     algo = args.algo
     if args.model:
+        from racing_sim.utils.model import detect_algo_from_model, infer_obs_type, load_model
+
         model_path = Path(args.model)
         if algo == "auto":
             algo = detect_algo_from_model(model_path)

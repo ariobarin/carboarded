@@ -32,6 +32,9 @@ Track4 baseline experiments on custom tracks after centerline-based progress rew
 ### Custom Track Baselines 2026-02-05.md
 Baseline PPO runs on all current custom track configs using the simple.yaml protocol. Includes run directories, best eval steps, and validation results.
 
+### Grid Baselines 2026-02-06.md
+First grid/CNN baselines on custom tracks under current physics. Compares grid (36x36 NatureCNN) vs prior lidar (9-ray MLP) baselines across all 7 custom tracks. Includes hypothesis framework for investigating performance gaps.
+
 ### Multi-Track PPO Baseline 2026-02-05.md
 Baseline multi-track PPO run across simple + track1-4 using config-list cycling. Includes per-track validation results.
 

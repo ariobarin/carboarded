@@ -10,7 +10,6 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from racing_sim.envs.racing_env import RacingEnv
 from racing_sim.config.defaults import resolve_env_config
-from racing_sim.utils.model import infer_obs_type, load_model
 
 
 def run_validation(
@@ -21,6 +20,8 @@ def run_validation(
     algo: str = "auto",
 ):
     """Run headless validation."""
+    from racing_sim.utils.model import infer_obs_type, load_model
+
     model_path = Path(model_path)
 
     # Load config
