@@ -38,3 +38,6 @@ _tmp*
 
 # Windows artifacts
 nul
+
+# Local session notes
+MEMORY.md
