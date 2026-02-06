@@ -132,14 +132,17 @@ class EnvConfig:
     max_checkpoint_skip: int = 10
     speed_bonus_scale: float = 0.05
     progress_reward_scale: float = 0.75
-    slowdown_distance: float = 0.0
-    slowdown_penalty_scale: float = 0.0
+    slowdown_distance: float = 0.0  # Disabled; hurts convergence (see Learnings/)
+    slowdown_penalty_scale: float = 0.0  # Disabled; hurts convergence
+    # Applied when terminate_on_collision=True and a collision occurs.
     collision_penalty: float = -20.0
-    time_penalty: float = 0.0
+    time_penalty: float = 0.0  # Disabled; hurts convergence (see Learnings/)
     off_track_penalty: float = 0.0
     max_off_track_steps: int = 0
     terminate_on_collision: bool = True
+    # Applied per step while touching a wall when terminate_on_collision=False.
     wall_contact_penalty: float = 0.0
+    # Terminate after sustained wall contact when > 0.
     max_wall_contact_steps: int = 0
 
     # Randomization
@@ -178,13 +181,21 @@ class EnvConfig:
             config.track = TrackConfig(**track_data)
         if "grid" in data:
             config.grid = GridConfig(**data["grid"])
-        if "obs_type" in data:
-            config.obs_type = data["obs_type"]
+        # Default to "lidar" for backward compat with configs that predate
+        # grid support.  Configs that want grid must set obs_type explicitly.
+        config.obs_type = data.get("obs_type", "lidar")
         if "render" in data:
             # Convert color lists to tuples
             render_data = data["render"]
-            for key in ["car_color", "wall_color", "lidar_clear_color",
-                        "lidar_hit_color", "background_color"]:
+            for key in [
+                "car_color",
+                "wall_color",
+                "lidar_clear_color",
+                "lidar_hit_color",
+                "background_color",
+                "grid_on_color",
+                "grid_off_color",
+            ]:
                 if key in render_data:
                     render_data[key] = tuple(render_data[key])
             config.render = RenderConfig(**render_data)
@@ -225,8 +236,18 @@ class EnvConfig:
 
         return config
 
+    @classmethod
+    def default(cls) -> "EnvConfig":
+        """Load the canonical default config from configs/default.yaml."""
+        from racing_sim.config.defaults import load_default_env_config
+        return load_default_env_config()
+
     def to_yaml(self, path: str) -> None:
         """Save configuration to a YAML file."""
+        class _IndentDumper(yaml.SafeDumper):
+            def increase_indent(self, flow=False, indentless=False):
+                return super().increase_indent(flow, indentless=False)
+
         data = {
             "car": {
                 "mass": self.car.mass,
@@ -265,11 +286,21 @@ class EnvConfig:
                 "screen_height": self.render.screen_height,
                 "fps": self.render.fps,
                 "show_lidar": self.render.show_lidar,
+                "show_grid": self.render.show_grid,
+                "grid_size": self.render.grid_size,
+                "grid_cell_size": self.render.grid_cell_size,
+                "grid_samples": self.render.grid_samples,
                 "car_color": list(self.render.car_color),
                 "wall_color": list(self.render.wall_color),
                 "lidar_clear_color": list(self.render.lidar_clear_color),
                 "lidar_hit_color": list(self.render.lidar_hit_color),
                 "background_color": list(self.render.background_color),
+                "grid_on_color": list(self.render.grid_on_color),
+                "grid_off_color": list(self.render.grid_off_color),
+                "pov_car_offset_y": self.render.pov_car_offset_y,
+                "pov_lidar_max_length": self.render.pov_lidar_max_length,
+                "pov_grid_max_size": self.render.pov_grid_max_size,
+                "pov_worldspace_scale": self.render.pov_worldspace_scale,
             },
             "physics_dt": self.physics_dt,
             "max_episode_steps": self.max_episode_steps,
@@ -292,7 +323,15 @@ class EnvConfig:
 
         Path(path).parent.mkdir(parents=True, exist_ok=True)
         with open(path, "w") as f:
-            yaml.dump(data, f, default_flow_style=False)
+            yaml.dump(
+                data,
+                f,
+                Dumper=_IndentDumper,
+                default_flow_style=False,
+                sort_keys=False,
+                indent=2,
+                width=88,
+            )
 
     def _track_to_dict(self) -> dict:
         """Convert track config to dictionary for YAML serialization."""

@@ -42,6 +42,7 @@ class NodeTrack:
         num_checkpoints: int = 64,
         start_node_index: int = 0,
         start_offset: float = 0.0,
+        build_bitmap: bool = True,
     ):
         """Initialize a node-based track.
 
@@ -100,7 +101,8 @@ class NodeTrack:
             self._create_walls()
             self._create_checkpoints()
             self._compute_start_position()
-            self._create_bitmap()
+            if build_bitmap:
+                self._create_bitmap()
 
     def _build_centerline(self):
         """Build centerline from nodes with fillets."""

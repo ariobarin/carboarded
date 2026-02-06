@@ -1,4 +1,4 @@
-# CNN Stability and Convergence Research
+﻿# CNN Stability and Convergence Research
 
 **Goal:** Improve CNN training stability and convergence speed to prepare for more complex tracks.
 **Date:** 2026-02-01
@@ -53,7 +53,7 @@ Added `--lr-schedule` argument to `scripts/train.py`:
 
 **Command:**
 ```bash
-py scripts/train.py --algo ppo --preset fast --total-timesteps 300000 \
+py scripts/train.py --algo ppo --total-timesteps 300000 \
   --cnn --config configs/wavy_v2_cnn.yaml \
   --learning-rate 0.0003 --ent-coef 0.04 \
   --save-freq 50000 --eval-freq 20000 --eval-episodes 5 --seed 42
@@ -83,7 +83,7 @@ py scripts/train.py --algo ppo --preset fast --total-timesteps 300000 \
 
 **Command:**
 ```bash
-py scripts/train.py --algo ppo --preset fast --total-timesteps 300000 \
+py scripts/train.py --algo ppo --total-timesteps 300000 \
   --cnn --config configs/wavy_v2_cnn.yaml \
   --learning-rate 0.0003 --ent-coef 0.02 --lr-schedule linear \
   --save-freq 50000 --eval-freq 20000 --eval-episodes 5 --seed 42
@@ -115,7 +115,7 @@ py scripts/train.py --algo ppo --preset fast --total-timesteps 300000 \
 
 **Command:**
 ```bash
-py scripts/train.py --algo ppo --preset fast --total-timesteps 300000 \
+py scripts/train.py --algo ppo --total-timesteps 300000 \
   --cnn --config configs/wavy_v2_cnn.yaml \
   --learning-rate 0.001 --ent-coef 0.02 --lr-schedule linear \
   --save-freq 50000 --eval-freq 20000 --eval-episodes 5 --seed 42
@@ -214,7 +214,7 @@ Expected challenges:
 ### Training Command for Wavy V3
 
 ```bash
-py scripts/train.py --algo ppo --preset fast --total-timesteps 500000 \
+py scripts/train.py --algo ppo --total-timesteps 500000 \
   --cnn --config configs/wavy_v3.yaml \
   --learning-rate 0.0003 --ent-coef 0.02 --lr-schedule linear \
   --save-freq 50000 --eval-freq 20000 --eval-episodes 5 --seed 42
@@ -240,3 +240,4 @@ py scripts/train.py --algo ppo --preset fast --total-timesteps 500000 \
 | Exp 3 (LR decay 0.001->1e-4) | 226.47 | 280k | 225.33 | 35 min | High LR corrupts CNN |
 
 **Winner:** Baseline settings remain optimal. LR schedule (linear) is a minor improvement worth keeping.
+

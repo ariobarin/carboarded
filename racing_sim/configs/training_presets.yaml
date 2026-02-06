@@ -1,0 +1,25 @@
+# Canonical training defaults (single source of truth).
+
+ppo:
+  learning_rate: 0.0003
+  n_steps: 1024
+  batch_size: 64
+  n_epochs: 5
+  clip_range: 0.2
+  gamma: 0.99
+  gae_lambda: 0.95
+  ent_coef: 0.02
+  vf_coef: 0.5
+  max_grad_norm: 0.5
+  target_kl: 0.05
+  l2_reg: 0.0001
+
+sac:
+  learning_rate: 0.0003
+  buffer_size: 100000
+  batch_size: 128
+  tau: 0.005
+  gamma: 0.99
+  train_freq: 1
+  gradient_steps: 1
+  learning_starts: 1000

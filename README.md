@@ -2,136 +2,125 @@
 
 A 2D autonomous racing environment for training reinforcement learning agents. Built with Gymnasium, Pymunk physics, and Stable-Baselines3.
 
-## Highlights
+<!-- TODO: Add a GIF/screenshot of a trained agent driving -->
 
-- **252.60 best reward** on the hardest track (Wavy V2) using PPO with a CNN grid observation and L2 regularization
-- Two observation types: 9-ray lidar and 36x36 homographic grid (CNN)
-- Two algorithms: PPO (best performance) and SAC (supports random starts)
-- Three track difficulties with configurable waviness
-- Real-time visualization with lidar/grid debug overlays
-
-## Getting Started
-
-**Prerequisites:** Python 3.12+, [uv](https://github.com/astral-sh/uv)
+## Quick Start
 
 ```bash
 cd racing_sim
 uv venv && uv pip install -e .
+
+# Train a PPO agent (~500k steps on the simple custom track)
+py scripts/train.py --algo ppo --total-timesteps 500000 \
+  --config configs/custom_tracks/simple.yaml \
+  --save-freq 100000 --eval-freq 20000 --eval-episodes 1
+
+# Multi-track PPO (simple + track1-4, cycles tracks per episode)
+py scripts/train.py --algo ppo --total-timesteps 500000 \
+  --config-list configs/custom_tracks/simple.yaml,configs/custom_tracks/track1.yaml,configs/custom_tracks/track2.yaml,configs/custom_tracks/track3.yaml,configs/custom_tracks/track4.yaml \
+  --save-freq 100000 --eval-freq 20000 --eval-episodes 1
+
+# Watch it drive (or drive yourself with arrows/WASD)
+py scripts/play.py --model models/<run>/best_model.zip --deterministic
 ```
 
-**Train a model** (Physics v2 baseline, ~5-10 min on a modern CPU):
+**Prerequisites:** Python 3.12+, [uv](https://github.com/astral-sh/uv)
+
+## Results (Current Physics)
+
+| Model | Track | Reward | Steps (best) |
+|-------|-------|--------|--------------|
+| PPO Simple Custom Track - 24.92 Reward | simple | 24.92 | 180k |
+| PPO Supersimple Custom Track - 14.00 Reward | supersimple | 14.00 | 140k |
+| PPO Square Test Custom Track - 48.85 Reward | square_test | 48.85 | 280k |
+| PPO Track1 Custom Track - 24.07 Reward | track1 | 24.07 | 200k |
+| PPO Track2 Custom Track - 15.47 Reward | track2 | 15.47 | 140k |
+| PPO Track3 Custom Track - 21.03 Reward | track3 | 21.03 | 220k |
+| PPO Track4 Custom Track - 15.38 Reward | track4 | 15.38 | 100k |
+
+Each model folder in `Good Models/` includes a config snapshot and training command for reproduction. Model weights are not committed to git (train your own using the provided configs).
+
+## Legacy Results (Legacy Physics)
+
+Legacy scores and configs are documented in `legacy/Good Models/` and `legacy/README.md`.
+
+## Legacy Reproduction
+
+The historical scores and runs documented in `legacy/Good Models/` were produced with the legacy physics implementation. The current `racing_sim/` codebase uses updated physics and will not reproduce those scores even with the same configs.
+
+This repo includes a clearly labeled legacy snapshot under `legacy/`. To reproduce historical results, follow `legacy/README.md` and run training from `legacy/racing_sim`.
+
+## How It Works
+
+Each step: the agent sends `[steering, throttle]` to the car, Pymunk simulates physics (lateral friction, speed-dependent steering), sensors observe the result, and a reward is computed.
+
+**Observation types:**
+- **Lidar** -- 9 rays in a forward arc, each returning a normalized wall distance [0,1]. Simple, fast, works with MLP policies.
+- **Grid (CNN)** -- A 36x36 binary occupancy grid projected ahead of the car using a perspective transform. Nearby cells are dense, distant cells are sparse. Processed by a CNN feature extractor. Slightly outperforms lidar on harder tracks.
+
+**Reward structure:**
+
+| Component | Value | Notes |
+|-----------|-------|-------|
+| Checkpoint | +1.0 | Crossing next checkpoint in sequence |
+| Progress bonus | +scale * normalized_progress | Per step; scale 0.5-0.75 (primary convergence driver) |
+| Speed bonus | +0.05 * (speed/max_speed) | Per step |
+| Collision | -20.0 | Terminates episode |
+
+## Configuration
+
+All configs live in `racing_sim/configs/`:
+- `default.yaml` -- baseline environment config (start here)
+- `training_presets.yaml` -- algorithm hyperparameter defaults
+- `custom_tracks/*.yaml` -- example custom tracks for the node-based editor
+
+Configs are YAML files loaded into dataclasses. CLI arguments override YAML values. See `racing_sim/configs/README.md` for details.
+
+## Track Editor
+
+Create custom tracks with the visual node-based editor:
 
 ```bash
-py scripts/train.py --algo ppo --preset fast --total-timesteps 500000 \
-  --config configs/physics_v2.yaml \
-  --learning-rate 0.003 --ent-coef 0.02 \
-  --save-freq 50000 --eval-freq 20000 --eval-episodes 5
+py scripts/create_track.py                            # launch editor
+py scripts/create_track.py --load configs/custom_tracks/square_test.yaml  # edit existing
+
+# Editor controls: Click=add/select, Drag=move, Right-click=delete
+# G=grid snap, P=preview, Ctrl+S=save, Ctrl+Z/Y=undo/redo
 ```
 
-**Watch it drive:**
+Train and play on custom tracks:
 
 ```bash
-# Keyboard control (arrows/WASD, ESC to quit)
-py scripts/play.py
-
-# Run a trained model
-py scripts/play.py --model "../Good Models/PPO CNN L2Reg Wavy V2 - 252.60 Reward/best_model.zip" \
-  --config "../Good Models/PPO CNN L2Reg Wavy V2 - 252.60 Reward/config.yaml" --deterministic --episodes 5
-
-# In-game keys: G=toggle grid, V=grid debug view, L=toggle lidar, R=reset
+py scripts/train.py --config configs/custom_tracks/square_test.yaml --total-timesteps 100000
+py scripts/play.py --config configs/custom_tracks/square_test.yaml
 ```
-
-**Physics tuning:**
-
-```bash
-# Interactive tuning on a simple ellipse
-py scripts/physics_tuner.py --config configs/physics_v2.yaml
-
-# Log speed/accel/position to CSV (headless)
-py scripts/physics_probe.py --config configs/physics_v2.yaml --scenario straight_full_throttle --steps 600
-
-# Sweep multiple configs + scenarios to a summary CSV
-py scripts/physics_sweep.py --configs configs/physics_v2.yaml \
-  configs/deprecated/physics_v2_candidates/physics_v2_f1_grip.yaml \
-  configs/deprecated/physics_v2_candidates/physics_v2_training_safe.yaml \
-  --scenario all --steps 600
-```
-
-**Validate headless:**
-
-```bash
-py scripts/validate.py --model MODEL_PATH --config CONFIG_PATH --episodes 1 --deterministic
-```
-
-## Results
-
-All models validated with 100 deterministic episodes.
-
-| Phase | Algorithm | Track | Obs Type | Best Reward | Steps |
-|-------|-----------|-------|----------|-------------|-------|
-| 3 | PPO+CNN+L2 | Wavy V2 | Grid 36x36 | **252.60** | 120k |
-| 2 | PPO+CNN | Wavy V2 | Grid 36x36 | 249.43 | 220k |
-| 1 | PPO | Simple | Lidar 9-ray | 252.49 | 80k |
-| 1 | PPO | Wavy V2 | Lidar 9-ray | 247.26 | 220k |
-| 1 | PPO | Wavy V1 | Lidar | 237.57 | 80k |
-| 1 | SAC | Wavy V1 | Lidar | 209.09 | 40k |
-| 1 | SAC | Wavy V2 | Lidar | 183.70 | 90k |
-
-Trained model weights are in `Good Models/` -- see [Good Models/README.md](Good%20Models/README.md) for the full index.
-Legacy results use pre-physics_v2 configs; each model folder includes a `config.yaml` snapshot for reproduction.
-
-## Observation Types
-
-**Lidar** -- 9 rays cast from the car in a forward arc. Each returns a normalized distance [0,1] to the nearest wall. Simple, fast, and effective. Works with standard MLP policies.
-
-**Grid (CNN)** -- A 36x36 binary grid projected ahead of the car using a perspective (homographic) transform. Each cell is 1 (on track) or 0 (off track). Nearby cells are dense; distant cells are sparse, mimicking natural perspective. Processed by a CNN feature extractor. Slightly outperforms lidar on the hardest track.
-
-## Track Variants
-
-| Track | Config | Difficulty | Description |
-|-------|--------|------------|-------------|
-| Physics v2 (Simple) | `physics_v2.yaml` | Easy | New physics baseline |
-| Legacy Simple | `configs/deprecated/legacy_2026_02/fast_iter_v3_complex_progress_0p5.yaml` | Easy | Smooth ellipse (legacy) |
-| Legacy Wavy V1 | `configs/deprecated/legacy_2026_02/fast_iter_v3_complex_wavy_v1.yaml` | Medium | 3 waves, waviness=0.06 |
-| Legacy Wavy V2 | `configs/deprecated/legacy_2026_02/wavy_v2_progress_0p75.yaml` | Hard | 5 waves, waviness=0.08 |
-| Legacy Wavy V2 CNN | `configs/deprecated/legacy_2026_02/wavy_v2_cnn.yaml` | Hard | Same track, grid observation |
-
-All configs live in `racing_sim/configs/`. Legacy configs are in `racing_sim/configs/deprecated/legacy_2026_02/`.
-Experimental physics v2 candidates (UNVALIDATED) are in `racing_sim/configs/deprecated/physics_v2_candidates/`.
 
 ## Project Structure
 
 ```
+legacy/
+  racing_sim/           # Legacy physics snapshot for reproduction
+  Good Models/          # Legacy model READMEs + config snapshots
 racing_sim/
   racing_sim/           # Python package
     envs/               # Gymnasium environment
     physics/            # Car dynamics + track generation (Pymunk)
     sensors/            # Lidar raycasting + grid projection
+    editor/             # Node-based track editor
     rendering/          # PyGame visualization
     config/             # Dataclass configs, YAML loading
+    policies/           # Custom policy networks (dropout)
     utils/              # Reward, progress helpers
-  scripts/              # train.py, play.py, validate.py
+  scripts/              # train.py, play.py, validate.py, physics tools
   configs/              # YAML environment configs
   tests/                # pytest suite
-Good Models/            # Trained model weights + per-model READMEs
+Good Models/            # Per-model READMEs + config snapshots
 Learnings/              # Experiment summaries and research docs
-CLAUDE.md               # Developer reference (commands, architecture, hyperparameters)
-STANDARDS.md            # Experiment protocols and conventions
 ```
 
-## Documentation Guide
+## Experiment Findings
 
-| Document | Purpose |
-|----------|---------|
-| [CLAUDE.md](CLAUDE.md) | Commands, architecture, hyperparameter tables, all empirical findings |
-| [STANDARDS.md](STANDARDS.md) | Experiment protocols, model saving conventions, config management |
-| [Learnings/README.md](Learnings/README.md) | Index of all experiment documents |
-| [Learnings/Glossary.md](Learnings/Glossary.md) | RL/ML term definitions for newcomers |
-| [Good Models/README.md](Good%20Models/README.md) | Trained model index with results |
-
-## Key Findings
-
-Three phases of experiments produced several practical insights:
+Several practical insights from the legacy physics experiments:
 
 1. **Progress reward shaping (0.5-0.75) is the primary convergence driver.** Without it, agents struggle to learn directional movement. Values above 0.8 cause instability.
 
@@ -147,11 +136,33 @@ Three phases of experiments produced several practical insights:
 
 See `Learnings/` for detailed experiment logs and `Learnings/What Didnt Work.md` for the full anti-pattern guide.
 
+## Documentation
+
+| Document | Purpose |
+|----------|---------|
+| [CLAUDE.md](CLAUDE.md) | Developer reference: commands, architecture, config reference |
+| [STANDARDS.md](STANDARDS.md) | Experiment protocols, model saving conventions |
+| [Learnings/README.md](Learnings/README.md) | Index of all experiment documents |
+| [Learnings/Glossary.md](Learnings/Glossary.md) | RL/ML term definitions |
+| [Good Models/README.md](Good%20Models/README.md) | Trained model index (current physics) |
+| [legacy/Good Models/README.md](legacy/Good%20Models/README.md) | Trained model index (legacy physics) |
+
+## Scripts Reference
+
+| Script | Description |
+|--------|-------------|
+| `train.py` | Train PPO or SAC agents with configurable hyperparameters |
+| `play.py` | Visualize a trained model or drive manually (arrows/WASD) |
+| `validate.py` | Headless evaluation over N episodes |
+| `create_track.py` | Visual node-based track editor |
+| `physics_tuner.py` | Interactive physics parameter tuning |
+| `physics_probe.py` | Log speed/accel/position to CSV for a given scenario |
+| `physics_sweep.py` | Compare multiple configs across physics scenarios |
+
 ## Future Work
 
-- **Robustness:** Multi-seed validation, sensitivity analysis, failure mode documentation
 - **Harder tracks:** Waviness > 0.08, more waves, narrower width
 - **Domain randomization:** Lidar noise, friction variation, action delay for sim-to-real transfer
 - **Deployment:** ONNX export, model quantization for edge inference
-- **Sim-to-real bridge:** Homography-warped camera feed on physical car with steering/throttle control
-- **Collapse mitigation:** Explore population-based training, periodic policy distillation, or ensemble methods
+- **Sim-to-real bridge:** Homography-warped camera feed on a physical car
+- **Collapse mitigation:** Population-based training, periodic policy distillation, or ensemble methods

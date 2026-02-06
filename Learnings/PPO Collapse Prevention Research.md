@@ -1,4 +1,4 @@
-# PPO Collapse Prevention Research (Phase 3)
+﻿# PPO Collapse Prevention Research (Phase 3)
 
 **Status:** COMPLETE
 **Date:** 2026-02-02
@@ -23,7 +23,7 @@ PPO training consistently exhibits policy collapse:
 
 **Command:**
 ```bash
-py scripts/train.py --algo ppo --preset fast --total-timesteps 300000 \
+py scripts/train.py --algo ppo --total-timesteps 300000 \
   --cnn --config configs/wavy_v2_cnn.yaml \
   --learning-rate 0.0003 --ent-coef 0.02 --target-kl 0.02 \
   --adam-betas 0.99 0.99 --seed 42 \
@@ -40,7 +40,7 @@ py scripts/train.py --algo ppo --preset fast --total-timesteps 300000 \
 
 **Command:**
 ```bash
-py scripts/train.py --algo ppo --preset fast --total-timesteps 300000 \
+py scripts/train.py --algo ppo --total-timesteps 300000 \
   --cnn --config configs/wavy_v2_cnn.yaml \
   --learning-rate 0.0003 --ent-coef 0.02 --target-kl 0.02 \
   --l2-reg 0.0001 --seed 42 \
@@ -57,7 +57,7 @@ py scripts/train.py --algo ppo --preset fast --total-timesteps 300000 \
 
 **Command:**
 ```bash
-py scripts/train.py --algo ppo --preset fast --total-timesteps 300000 \
+py scripts/train.py --algo ppo --total-timesteps 300000 \
   --config configs/wavy_v2_progress_0p75.yaml \
   --learning-rate 0.001 --ent-coef 0.02 --target-kl 0.02 \
   --layernorm --seed 42 \
@@ -75,7 +75,7 @@ py scripts/train.py --algo ppo --preset fast --total-timesteps 300000 \
 
 **Command:**
 ```bash
-py scripts/train.py --algo ppo --preset fast --total-timesteps 300000 \
+py scripts/train.py --algo ppo --total-timesteps 300000 \
   --cnn --config configs/wavy_v2_cnn.yaml \
   --learning-rate 0.0003 --ent-coef 0.02 --target-kl 0.02 \
   --shrink-perturb --shrink-interval 50000 --seed 42 \
@@ -145,7 +145,7 @@ py scripts/train.py --algo ppo --preset fast --total-timesteps 300000 \
 
 For CNN training with L2 regularization:
 ```bash
-py scripts/train.py --algo ppo --preset fast --total-timesteps 500000 \
+py scripts/train.py --algo ppo --total-timesteps 500000 \
   --cnn --config configs/wavy_v2_cnn.yaml \
   --learning-rate 0.0003 --ent-coef 0.02 --target-kl 0.02 \
   --l2-reg 0.0001 --seed 7 \
@@ -182,3 +182,4 @@ Methods not yet tested that might help:
 - [Plasticine Framework](https://github.com/RLE-Foundation/Plasticine)
 - [Deep RL Plasticity Repo](https://github.com/awjuliani/deep-rl-plasticity)
 - [SB3 Custom Policies](https://stable-baselines3.readthedocs.io/en/master/guide/custom_policy.html)
+

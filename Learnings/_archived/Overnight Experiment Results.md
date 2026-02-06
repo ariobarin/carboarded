@@ -1,4 +1,4 @@
-# Overnight Experiment Results (2026-01-31)
+﻿# Overnight Experiment Results (2026-01-31)
 
 ## Executive Summary
 
@@ -7,7 +7,7 @@ Ran 15 experiments overnight to push PPO performance past 243.71 on Wavy V2.
 **New all-time best: 247.26 reward** (ent=0.02, LR=0.001, seed=42) -- 96.2% of theoretical max (~257).
 Also scores **370.44** on 3000-step episodes (up from 366.76).
 
-Saved to: `Good Models/PPO Wavy V2 Ent0p02 LR0p001 500k - 247.26 Reward/`
+Saved to: `legacy/Good Models/PPO Wavy V2 Ent0p02 LR0p001 500k - 247.26 Reward/`
 
 ---
 
@@ -130,7 +130,7 @@ SAC runs at ~50-100 steps/sec vs PPO's ~800 steps/sec. For this task, PPO is dra
 ## Optimal Config (Current Best)
 
 ```bash
-py scripts/train.py --algo ppo --preset fast --total-timesteps 500000 \
+py scripts/train.py --algo ppo --total-timesteps 500000 \
   --config configs/wavy_v2_progress_0p75.yaml \
   --learning-rate 0.001 --ent-coef 0.02 \
   --save-freq 50000 --eval-freq 20000 --eval-episodes 5
@@ -148,3 +148,4 @@ For pushing higher: run with multiple seeds (--seed 1, 2, 3, ...) and keep the b
 4. **PPO-specific tuning:** clip_range=0.1 (tighter updates), more epochs per rollout.
 5. **SAC with patience:** Run SAC for 1M+ steps to see if it eventually surpasses PPO.
 6. **CNN grid observation:** Replace lidar with 10x10 grid for richer spatial info.
+

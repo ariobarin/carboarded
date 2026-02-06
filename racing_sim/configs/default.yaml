@@ -1,10 +1,4 @@
-# =============================================================================
-# PHYSICS V2 - Baseline Config (Simple Track)
-# =============================================================================
-# Purpose: Default training config for the new physics model.
-# Track: Simple ellipse (waviness=0, waves=0)
-# Notes: Tuned for speed-dependent steering + air drag + accel boost + throttle smoothing.
-# =============================================================================
+# Default config (matches custom_tracks/simple.yaml)
 
 car:
   mass: 1.0
@@ -22,55 +16,108 @@ car:
   steering_speed_ref: 450.0
   steering_min_factor: 0.02
   turning_drag: 0.7
-
 lidar:
   num_rays: 9
-  ray_angles: [-90.0, -67.5, -45.0, -22.5, 0.0, 22.5, 45.0, 67.5, 90.0]
+  ray_angles:
+    - -90.0
+    - -67.5
+    - -45.0
+    - -22.5
+    - 0.0
+    - 22.5
+    - 45.0
+    - 67.5
+    - 90.0
   max_distance: 400.0
-
 track:
-  width: 200.0
-  outer_radius_x: 350.0
-  outer_radius_y: 250.0
-  center_x: 400.0
-  center_y: 300.0
-  waviness: 0.0
-  waves: 0
-  wave_phase: 0.0
-
+  track_type: custom
+  custom:
+    width: 180.0
+    num_checkpoints: 64
+    start_node_index: 0
+    start_offset: 0.0
+    nodes:
+      - x: -51.24938479068313
+        y: -94.22054882337389
+        radius: 200
+      - x: 536.6848733217671
+        y: 238.46420210854916
+        radius: 200
+      - x: 1210.6582911579903
+        y: 74.98979863338008
+        radius: 200
+      - x: 972.6166159222179
+        y: 857.9461521197162
+        radius: 200
+      - x: 525.2129853585973
+        y: 404.8065775745107
+        radius: 200
+      - x: 29.05383095150519
+        y: 671.5279727182076
+        radius: 200
 grid:
   grid_size: 36
-  camera_height: 50.0
+  camera_height: 100.0
   camera_pitch: 45.0
-  fov_horizontal: 60.0
+  fov_horizontal: 90.0
   near_distance: 30.0
-  far_distance: 200.0
-
-obs_type: grid
-
+  far_distance: 300.0
+obs_type: lidar
 render:
   screen_width: 800
   screen_height: 600
   fps: 60
   show_lidar: true
   show_grid: true
-  car_color: [0, 100, 255]
-  wall_color: [100, 100, 100]
-  lidar_clear_color: [0, 255, 0]
-  lidar_hit_color: [255, 0, 0]
-  background_color: [30, 30, 30]
-
-physics_dt: 0.016666666666666666  # 1/60
-max_episode_steps: 2000
-
-random_start: true
-random_start_lateral_fraction: 1.0
-
+  grid_size: 10
+  grid_cell_size: 20.0
+  grid_samples: 3
+  car_color:
+    - 0
+    - 100
+    - 255
+  wall_color:
+    - 100
+    - 100
+    - 100
+  lidar_clear_color:
+    - 0
+    - 255
+    - 0
+  lidar_hit_color:
+    - 255
+    - 0
+    - 0
+  background_color:
+    - 30
+    - 30
+    - 30
+  grid_on_color:
+    - 0
+    - 200
+    - 0
+  grid_off_color:
+    - 200
+    - 0
+    - 0
+  pov_car_offset_y: 80
+  pov_lidar_max_length: 400
+  pov_grid_max_size: 300
+  pov_worldspace_scale: 2.0
+physics_dt: 0.016666666666666666
+max_episode_steps: 512
 checkpoint_reward: 1.0
-speed_bonus_scale: 0.05
-progress_reward_scale: 0.75
+max_checkpoint_skip: 10
+speed_bonus_scale: 0.01
+progress_reward_scale: 0.5
 slowdown_distance: 0.0
 slowdown_penalty_scale: 0.0
-collision_penalty: -20.0
-terminate_on_collision: true
-time_penalty: -0.0
+collision_penalty: -2.0
+time_penalty: 0.0
+off_track_penalty: 0.0
+max_off_track_steps: 0
+terminate_on_collision: false
+wall_contact_penalty: -0.5
+max_wall_contact_steps: 30
+random_start: true
+random_start_lateral_fraction: 0.5

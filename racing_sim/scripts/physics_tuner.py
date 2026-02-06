@@ -13,6 +13,7 @@ import numpy as np
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from racing_sim.config.config import EnvConfig
+from racing_sim.config.defaults import resolve_env_config
 from racing_sim.envs.racing_env import RacingEnv
 
 
@@ -82,11 +83,7 @@ def _set_caption(selected: ParamSpec, value: float) -> None:
 def main(argv=None) -> None:
     args = build_arg_parser().parse_args(argv)
 
-    if args.config:
-        config = EnvConfig.from_yaml(args.config)
-    else:
-        default_path = Path(__file__).parent.parent / "configs" / "default.yaml"
-        config = EnvConfig.from_yaml(str(default_path))
+    config, _ = resolve_env_config(args.config)
 
     # Force a simple ellipse track for tuning.
     config.track.waviness = 0.0

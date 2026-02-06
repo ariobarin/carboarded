@@ -17,16 +17,19 @@ from racing_sim.utils.checkpoints import smoothed_checkpoint_lines
 class Renderer:
     """PyGame-based renderer with debug visualization."""
 
-    def __init__(self, config: RenderConfig, render_mode: str = "human"):
+    def __init__(self, config: RenderConfig, render_mode: str = "human",
+                 grid_config: Optional[GridConfig] = None):
         """
         Initialize the renderer.
 
         Args:
             config: Render configuration
             render_mode: "human" for display window, "rgb_array" for numpy array
+            grid_config: Grid sensor configuration for visualization
         """
         self.config = config
         self.render_mode = render_mode
+        self._grid_config = grid_config or GridConfig()
         self.screen: Optional[pygame.Surface] = None
         self.clock: Optional[pygame.time.Clock] = None
         self._initialized = False
@@ -40,6 +43,7 @@ class Renderer:
         self._pov_mode = False  # Car POV mode: stationary car view with sensors
         self.last_actions: Optional[dict] = None  # {"human": (steer, throttle), "ai": ...}
         self._view_offset = Vec2d(0.0, 0.0)
+        self._view_scale = 1.0
         self._needs_view_update = True
         self._last_track_id: Optional[int] = None
         # Cached fonts (initialized in _init_pygame)
@@ -234,7 +238,7 @@ class Renderer:
             grid_config: Grid sensor config. Uses default GridConfig if None.
         """
         if grid_config is None:
-            grid_config = GridConfig()
+            grid_config = self._grid_config
 
         grid = compute_grid(car.position, car.angle, track, grid_config)
 
@@ -271,7 +275,7 @@ class Renderer:
             grid_config: Grid sensor config. Uses default GridConfig if None.
         """
         if grid_config is None:
-            grid_config = GridConfig()
+            grid_config = self._grid_config
 
         grid = compute_grid(car.position, car.angle, track, grid_config)
         positions = compute_grid_positions(car.position, car.angle, grid_config)
@@ -310,13 +314,13 @@ class Renderer:
         car_screen_x = self.config.screen_width // 2
         car_screen_y = self.config.screen_height - self.config.pov_car_offset_y
         
-        # Render sensor visualization based on obs_type (respects L/G/V toggles)
-        if obs_type == "grid" and self._show_grid:
+        # Render sensor visualization (respects L/G/V toggles)
+        if self._show_grid:
             if self._grid_debug_mode:
                 self._render_pov_grid_worldspace(car, track, car_screen_x, car_screen_y)
             else:
                 self._render_pov_grid(car, track, car_screen_x, car_screen_y)
-        elif self._show_lidar and lidar is not None:
+        if self._show_lidar and lidar is not None:
             self._render_pov_lidar(lidar, car_screen_x, car_screen_y)
         
         # Render stationary car (always on top)
@@ -432,11 +436,10 @@ class Renderer:
         - pygame y=0 (top) gets row 0 (far) → CORRECT
         - pygame x=0 (left) gets col 0 (right of car) → WRONG, need to flip
         """
-        from racing_sim.config.config import GridConfig
-        grid_config = GridConfig()
-        
+        grid_config = self._grid_config
+
         grid = compute_grid(car.position, car.angle, track, grid_config)
-        
+
         # Create RGB array from binary grid
         rgb = np.zeros((grid.shape[0], grid.shape[1], 3), dtype=np.uint8)
         on_mask = grid > 0
@@ -466,12 +469,11 @@ class Renderer:
         
         Grid cells are rendered as circles radiating out from the car.
         """
-        from racing_sim.config.config import GridConfig
-        grid_config = GridConfig()
-        
+        grid_config = self._grid_config
+
         grid = compute_grid(car.position, car.angle, track, grid_config)
         positions = compute_grid_positions(car.position, car.angle, grid_config)
-        
+
         # Scale factor for converting world distances to screen pixels
         scale = self.config.pov_worldspace_scale
         
@@ -692,9 +694,11 @@ class Renderer:
         """Convert Pymunk coordinates to screen coordinates."""
         # Pymunk uses bottom-left origin, PyGame uses top-left
         # Flip y-axis
+        scaled_x = point.x * self._view_scale + self._view_offset.x
+        scaled_y = point.y * self._view_scale + self._view_offset.y
         return (
-            int(point.x + self._view_offset.x),
-            int(self.config.screen_height - (point.y + self._view_offset.y)),
+            int(scaled_x),
+            int(self.config.screen_height - scaled_y),
         )
 
     def _is_custom_track(self, track: Track) -> bool:
@@ -733,6 +737,7 @@ class Renderer:
 
         if not self._is_custom_track(track):
             self._view_offset = Vec2d(0.0, 0.0)
+            self._view_scale = 1.0
             self._needs_view_update = False
             self._last_track_id = track_id
             return
@@ -740,13 +745,23 @@ class Renderer:
         bounds = self._compute_track_bounds(track)
         if bounds is None:
             self._view_offset = Vec2d(0.0, 0.0)
+            self._view_scale = 1.0
         else:
             min_x, min_y, max_x, max_y = bounds
+            width = max_x - min_x
+            height = max_y - min_y
             center_x = (min_x + max_x) / 2.0
             center_y = (min_y + max_y) / 2.0
+            if width <= 0.0 or height <= 0.0:
+                self._view_scale = 1.0
+            else:
+                margin = 0.95
+                scale_x = (self.config.screen_width * margin) / width
+                scale_y = (self.config.screen_height * margin) / height
+                self._view_scale = min(scale_x, scale_y, 1.0)
             self._view_offset = Vec2d(
-                self.config.screen_width / 2.0 - center_x,
-                self.config.screen_height / 2.0 - center_y,
+                self.config.screen_width / 2.0 - center_x * self._view_scale,
+                self.config.screen_height / 2.0 - center_y * self._view_scale,
             )
 
         self._needs_view_update = False

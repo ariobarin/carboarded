@@ -1,4 +1,4 @@
-# CNN Grid Observation Research
+﻿# CNN Grid Observation Research
 
 **Goal:** Train PPO with CNN (NatureCNN) on 36x36 homographic camera grid to match or exceed lidar performance (247.26 on Wavy V2).
 
@@ -34,7 +34,7 @@ From `configs/wavy_v2_cnn.yaml`:
 ### Phase 1: CNN Baseline with Lidar Settings
 
 **Experiment 1A: CNN baseline (lidar settings)**
-- Command: `py scripts/train.py --algo ppo --preset fast --total-timesteps 300000 --cnn --config configs/wavy_v2_cnn.yaml --learning-rate 0.001 --ent-coef 0.02 --save-freq 50000 --eval-freq 20000 --eval-episodes 5 --seed 42`
+- Command: `py scripts/train.py --algo ppo --total-timesteps 300000 --cnn --config configs/wavy_v2_cnn.yaml --learning-rate 0.001 --ent-coef 0.02 --save-freq 50000 --eval-freq 20000 --eval-episodes 5 --seed 42`
 - LR: 0.001, Ent: 0.02, Steps: 300k
 - Start time: 05:21:26
 - Model dir: models/ppo_fast_20260201_052126
@@ -65,7 +65,7 @@ From `configs/wavy_v2_cnn.yaml`:
 ### Phase 2: Learning Rate Sweep
 
 **Experiment 2A: Lower LR (WINNER)**
-- Command: `py scripts/train.py --algo ppo --preset fast --total-timesteps 300000 --cnn --config configs/wavy_v2_cnn.yaml --learning-rate 0.0003 --ent-coef 0.02 --save-freq 50000 --eval-freq 20000 --eval-episodes 5 --seed 42`
+- Command: `py scripts/train.py --algo ppo --total-timesteps 300000 --cnn --config configs/wavy_v2_cnn.yaml --learning-rate 0.0003 --ent-coef 0.02 --save-freq 50000 --eval-freq 20000 --eval-episodes 5 --seed 42`
 - LR: 0.0003, Ent: 0.02, Steps: 300k
 - Start time: 05:30:06
 - Model dir: models/ppo_fast_20260201_053006
@@ -141,7 +141,7 @@ Given that Experiment 2A already exceeded the lidar baseline (249.43 vs 247.26),
 | Best reward | **249.43** |
 | Steps | 220k |
 | Config | LR=0.0003, ent=0.02, seed=42 |
-| Model path | Good Models/PPO CNN Wavy V2 LR0.0003 - 249.43 Reward/ |
+| Model path | legacy/Good Models/PPO CNN Wavy V2 LR0.0003 - 249.43 Reward/ |
 | vs Lidar baseline | **101%** (exceeds by 2.17 points) |
 
 ---
@@ -149,7 +149,7 @@ Given that Experiment 2A already exceeded the lidar baseline (249.43 vs 247.26),
 ## Recommended CNN Training Command
 
 ```bash
-py scripts/train.py --algo ppo --preset fast --total-timesteps 300000 \
+py scripts/train.py --algo ppo --total-timesteps 300000 \
   --cnn --config configs/wavy_v2_cnn.yaml \
   --learning-rate 0.0003 --ent-coef 0.02 \
   --save-freq 50000 --eval-freq 20000 --eval-episodes 5 --seed 42
@@ -168,3 +168,4 @@ Key differences from lidar training:
 - Total training time is similar (~300k steps) but peak is earlier
 
 The CNN approach provides a viable alternative to lidar that could generalize better to visual inputs in future work.
+

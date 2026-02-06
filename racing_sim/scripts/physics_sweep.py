@@ -18,6 +18,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from scripts import physics_probe
 from racing_sim.config.config import EnvConfig
+from racing_sim.config.defaults import default_env_config_path
 
 
 @dataclass
@@ -44,7 +45,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
         "--configs",
         nargs="*",
         default=None,
-        help="Config YAML paths to sweep (defaults to physics_v2.yaml)",
+        help="Config YAML paths to sweep (defaults to configs/default.yaml)",
     )
     parser.add_argument("--output", type=str, default=None, help="CSV output path")
     parser.add_argument("--scenario", type=str, default="straight_full_throttle",
@@ -60,8 +61,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
 def _resolve_configs(configs: Optional[Sequence[str]]) -> List[str]:
     if configs:
         return list(configs)
-    default_path = Path(__file__).parent.parent / "configs" / "physics_v2.yaml"
-    return [str(default_path)]
+    return [str(default_env_config_path())]
 
 
 def _time_to_threshold(samples: Sequence[physics_probe.ProbeSample], threshold: float) -> Optional[float]:

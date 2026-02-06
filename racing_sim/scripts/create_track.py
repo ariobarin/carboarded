@@ -25,6 +25,7 @@ from racing_sim.editor.validation import validate_track
 from racing_sim.editor.node_track import NodeTrack
 from racing_sim.editor.geometry import compute_fillet
 from racing_sim.config.config import EnvConfig, NodeConfig, NodeTrackConfig, TrackConfig
+from racing_sim.config.defaults import load_default_env_config
 from racing_sim.physics.car import Car
 from racing_sim.sensors.lidar import Lidar
 from racing_sim.utils.checkpoints import smoothed_checkpoint_lines
@@ -70,7 +71,7 @@ class TrackEditor:
         """
         self.screen_width = screen_width
         self.screen_height = screen_height
-        self.config = EnvConfig()
+        self.config = self._default_env_config()
 
         # Initialize state and renderer
         self.state = EditorState()
@@ -95,6 +96,11 @@ class TrackEditor:
         self._pending_new_node_start: Optional[tuple] = None
         self._pending_new_node_world: Optional[tuple] = None
         self._radius_drag_start: Optional[float] = None
+        self._preview_view_state: Optional[tuple] = None
+
+    def _default_env_config(self) -> EnvConfig:
+        """Load the canonical default environment config."""
+        return load_default_env_config()
 
     def run(self, load_path: Optional[str] = None):
         """Run the editor main loop.
@@ -508,6 +514,9 @@ class TrackEditor:
         if self.preview_car.collided:
             self._reset_preview()
 
+        # Keep the preview camera centered on the car.
+        self._sync_preview_camera()
+
         # Render preview
         self._render_preview(lidar_obs)
 
@@ -579,17 +588,24 @@ class TrackEditor:
         self.preview_space.gravity = (0, 0)
 
         # Create track
+        num_checkpoints = 64
+        if (
+            self.config.track.track_type == "custom"
+            and self.config.track.custom is not None
+        ):
+            num_checkpoints = self.config.track.custom.num_checkpoints
         self.preview_track = NodeTrack(
             self.preview_space,
             nodes=nodes,
             width=self.state.track.width,
+            num_checkpoints=num_checkpoints,
             start_node_index=self.state.track.start_node_index,
             start_offset=self.state.track.start_offset,
+            build_bitmap=False,
         )
 
         # Create car
-        from racing_sim.config.config import CarConfig, LidarConfig
-        car_config = CarConfig()
+        car_config = self.config.car
         self.preview_car = Car(
             self.preview_space,
             car_config,
@@ -598,9 +614,16 @@ class TrackEditor:
         )
 
         # Create lidar
-        lidar_config = LidarConfig()
+        lidar_config = self.config.lidar
         self.preview_lidar = Lidar(self.preview_space, lidar_config)
 
+        # Cache current view before switching to preview camera.
+        self._preview_view_state = (
+            self.state.view.offset_x,
+            self.state.view.offset_y,
+            self.state.view.zoom,
+        )
+        self._sync_preview_camera()
         self.state.mode = EditorMode.PREVIEW
 
     def _exit_preview_mode(self):
@@ -609,6 +632,11 @@ class TrackEditor:
         self.preview_track = None
         self.preview_car = None
         self.preview_lidar = None
+        if self._preview_view_state is not None:
+            self.state.view.offset_x, self.state.view.offset_y, self.state.view.zoom = (
+                self._preview_view_state
+            )
+            self._preview_view_state = None
         self.state.mode = EditorMode.EDIT
 
     def _reset_preview(self):
@@ -618,6 +646,14 @@ class TrackEditor:
                 position=(self.preview_track.start_position.x, self.preview_track.start_position.y),
                 angle=self.preview_track.start_angle,
             )
+
+    def _sync_preview_camera(self):
+        """Center the preview camera on the car position."""
+        if not self.preview_car:
+            return
+        zoom = max(self.state.view.zoom, 1e-6)
+        self.state.view.offset_x = self.screen_width / 2 - self.preview_car.position.x * zoom
+        self.state.view.offset_y = self.screen_height / 2 - self.preview_car.position.y * zoom
 
     def _save_track(self):
         """Save track to file."""
@@ -658,13 +694,13 @@ class TrackEditor:
             for node in self.state.track.nodes
         ]
 
-        default_config_path = (
-            Path(__file__).parent.parent / "configs" / "default.yaml"
-        )
-        if default_config_path.exists():
-            config = EnvConfig.from_yaml(str(default_config_path))
-        else:
-            config = EnvConfig()
+        config = self.config if self.config is not None else self._default_env_config()
+        num_checkpoints = 64
+        if (
+            config.track.track_type == "custom"
+            and config.track.custom is not None
+        ):
+            num_checkpoints = config.track.custom.num_checkpoints
 
         config.track = TrackConfig(
             track_type="custom",
@@ -673,9 +709,9 @@ class TrackEditor:
                 width=self.state.track.width,
                 start_node_index=self.state.track.start_node_index,
                 start_offset=self.state.track.start_offset,
+                num_checkpoints=num_checkpoints,
             ),
         )
-        config.max_episode_steps = 2000
 
         config.to_yaml(file_path)
         self.state.file_path = file_path
@@ -725,6 +761,7 @@ class TrackEditor:
             self.state.track.start_node_index = config.track.custom.start_node_index
             self.state.track.start_offset = config.track.custom.start_offset
 
+            self.config = config
             self.state.file_path = file_path
             self.state.dirty = False
             self.state.selected_node = None
@@ -740,6 +777,7 @@ class TrackEditor:
         self.state.create_default_track(self.screen_width, self.screen_height)
         self.state.file_path = None
         self.state.dirty = False
+        self.config = self._default_env_config()
 
 
 def main():

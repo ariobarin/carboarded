@@ -1,4 +1,4 @@
-# PPO Stability Research
+﻿# PPO Stability Research
 
 **Goal:** Reduce violent eval oscillation and achieve stable improvement during CNN training.
 **Date:** 2026-02-01
@@ -45,7 +45,7 @@ Reducing n_epochs from 5 to 3 reduces overfitting to stale rollout data, but com
 
 **Command:**
 ```bash
-py scripts/train.py --algo ppo --preset fast --total-timesteps 300000 \
+py scripts/train.py --algo ppo --total-timesteps 300000 \
   --cnn --config configs/wavy_v2_cnn.yaml \
   --learning-rate 0.0003 --ent-coef 0.02 --target-kl 0.02 \
   --save-freq 50000 --eval-freq 20000 --eval-episodes 5 --seed 42
@@ -71,7 +71,7 @@ py scripts/train.py --algo ppo --preset fast --total-timesteps 300000 \
 
 **Command:**
 ```bash
-py scripts/train.py --algo ppo --preset fast --total-timesteps 300000 \
+py scripts/train.py --algo ppo --total-timesteps 300000 \
   --cnn --config configs/wavy_v2_cnn.yaml \
   --learning-rate 0.0003 --ent-coef 0.02 --target-kl 0.01 \
   --save-freq 50000 --eval-freq 20000 --eval-episodes 5 --seed 42
@@ -97,7 +97,7 @@ py scripts/train.py --algo ppo --preset fast --total-timesteps 300000 \
 
 **Command:**
 ```bash
-py scripts/train.py --algo ppo --preset fast --total-timesteps 300000 \
+py scripts/train.py --algo ppo --total-timesteps 300000 \
   --cnn --config configs/wavy_v2_cnn.yaml \
   --learning-rate 0.0003 --ent-coef 0.02 --target-kl 0.02 --n-epochs 3 \
   --save-freq 50000 --eval-freq 20000 --eval-episodes 5 --seed 42
@@ -122,7 +122,7 @@ py scripts/train.py --algo ppo --preset fast --total-timesteps 300000 \
 
 **Command:**
 ```bash
-py scripts/train.py --algo ppo --preset fast --total-timesteps 300000 \
+py scripts/train.py --algo ppo --total-timesteps 300000 \
   --cnn --config configs/wavy_v2_cnn.yaml \
   --learning-rate 0.0003 --ent-coef 0.02 --target-kl 0.02 --clip-range 0.15 \
   --save-freq 50000 --eval-freq 20000 --eval-episodes 5 --seed 42
@@ -150,7 +150,7 @@ py scripts/train.py --algo ppo --preset fast --total-timesteps 300000 \
 
 **Command:**
 ```bash
-py scripts/train.py --algo ppo --preset fast --total-timesteps 500000 \
+py scripts/train.py --algo ppo --total-timesteps 500000 \
   --cnn --config configs/wavy_v2_cnn.yaml \
   --learning-rate 0.0003 --ent-coef 0.02 --target-kl 0.02 \
   --save-freq 50000 --eval-freq 20000 --eval-episodes 5 --seed 42
@@ -178,7 +178,7 @@ py scripts/train.py --algo ppo --preset fast --total-timesteps 500000 \
 
 **Command:**
 ```bash
-py scripts/train.py --algo ppo --preset fast --total-timesteps 300000 \
+py scripts/train.py --algo ppo --total-timesteps 300000 \
   --cnn --config configs/wavy_v2_cnn.yaml \
   --learning-rate 0.0003 --ent-coef 0.02 --target-kl 0.02 \
   --save-freq 50000 --eval-freq 20000 --eval-episodes 5 --seed 1
@@ -229,7 +229,7 @@ py scripts/train.py --algo ppo --preset fast --total-timesteps 300000 \
 
 For best stability:
 ```bash
-py scripts/train.py --algo ppo --preset fast --total-timesteps 300000 \
+py scripts/train.py --algo ppo --total-timesteps 300000 \
   --cnn --config configs/wavy_v2_cnn.yaml \
   --learning-rate 0.0003 --ent-coef 0.02 --target-kl 0.02 \
   --save-freq 50000 --eval-freq 20000 --eval-episodes 5 --seed 42
@@ -237,7 +237,7 @@ py scripts/train.py --algo ppo --preset fast --total-timesteps 300000 \
 
 For maximum peak (with more training time):
 ```bash
-py scripts/train.py --algo ppo --preset fast --total-timesteps 500000 \
+py scripts/train.py --algo ppo --total-timesteps 500000 \
   --cnn --config configs/wavy_v2_cnn.yaml \
   --learning-rate 0.0003 --ent-coef 0.02 --target-kl 0.02 \
   --save-freq 50000 --eval-freq 20000 --eval-episodes 5 --seed 42
@@ -270,3 +270,4 @@ Key points:
 2. **Extended training (500k) finds higher peaks** (247.64 vs 242.63) but collapse still occurs.
 3. **Seed variance remains significant.** Seed=1 collapsed while seed=42 did not at 300k.
 4. **Best strategy:** Use target_kl=0.02, run multiple seeds, save frequent checkpoints, keep best model.
+

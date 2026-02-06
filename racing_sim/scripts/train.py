@@ -10,79 +10,7 @@ from typing import Optional, Tuple
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from racing_sim.config.config import EnvConfig
-
-PRESETS = {
-    "ppo": {
-        "fast": dict(
-            learning_rate=1e-2,
-            n_steps=2048,
-            batch_size=64,
-            n_epochs=5,
-            clip_range=0.2,
-            gamma=0.99,
-            gae_lambda=0.95,
-            ent_coef=0.05,
-            vf_coef=0.5,
-            max_grad_norm=0.5,
-        ),
-        "balanced": dict(
-            learning_rate=3e-4,
-            n_steps=1024,
-            batch_size=128,
-            n_epochs=8,
-            clip_range=0.2,
-            gamma=0.99,
-            gae_lambda=0.95,
-            ent_coef=0.0,
-            vf_coef=0.5,
-            max_grad_norm=0.5,
-        ),
-        "quality": dict(
-            learning_rate=3e-4,
-            n_steps=2048,
-            batch_size=256,
-            n_epochs=10,
-            clip_range=0.2,
-            gamma=0.99,
-            gae_lambda=0.95,
-            ent_coef=0.01,
-            vf_coef=0.5,
-            max_grad_norm=0.5,
-        ),
-    },
-    "sac": {
-        "fast": dict(
-            learning_rate=3e-4,
-            buffer_size=100_000,
-            batch_size=128,
-            tau=0.005,
-            gamma=0.99,
-            train_freq=1,
-            gradient_steps=1,
-            learning_starts=1_000,
-        ),
-        "balanced": dict(
-            learning_rate=3e-4,
-            buffer_size=300_000,
-            batch_size=256,
-            tau=0.005,
-            gamma=0.99,
-            train_freq=1,
-            gradient_steps=1,
-            learning_starts=1_000,
-        ),
-        "quality": dict(
-            learning_rate=3e-4,
-            buffer_size=1_000_000,
-            batch_size=256,
-            tau=0.005,
-            gamma=0.99,
-            train_freq=1,
-            gradient_steps=1,
-            learning_starts=1_000,
-        ),
-    },
-}
+from racing_sim.config.defaults import load_training_presets, resolve_env_config
 
 
 def build_arg_parser() -> argparse.ArgumentParser:
@@ -95,13 +23,6 @@ def build_arg_parser() -> argparse.ArgumentParser:
         default="ppo",
         choices=["ppo", "sac"],
         help="Algorithm to use (ppo or sac)"
-    )
-    parser.add_argument(
-        "--preset",
-        type=str,
-        default="fast",
-        choices=["fast", "balanced", "quality"],
-        help="Hyperparameter preset"
     )
     parser.add_argument(
         "--total-timesteps",
@@ -133,6 +54,19 @@ def build_arg_parser() -> argparse.ArgumentParser:
         type=str,
         default=None,
         help="Path to config YAML file"
+    )
+    parser.add_argument(
+        "--config-list",
+        type=str,
+        default=None,
+        help="Comma-separated list of config YAML files (multi-track training)"
+    )
+    parser.add_argument(
+        "--multi-track-mode",
+        type=str,
+        default="round_robin",
+        choices=["round_robin", "random"],
+        help="Track selection mode when using --config-list"
     )
     parser.add_argument(
         "--eval-freq",
@@ -174,7 +108,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
         "--learning-rate",
         type=float,
         default=None,
-        help="Override preset learning rate"
+        help="Override learning rate"
     )
     parser.add_argument(
         "--lr-schedule",
@@ -220,6 +154,12 @@ def build_arg_parser() -> argparse.ArgumentParser:
         help="Override batch size (SAC only)"
     )
     parser.add_argument(
+        "--ppo-batch-size",
+        type=int,
+        default=None,
+        help="Override PPO batch size"
+    )
+    parser.add_argument(
         "--buffer-size",
         type=int,
         default=None,
@@ -262,6 +202,12 @@ def build_arg_parser() -> argparse.ArgumentParser:
         help="Override PPO n_epochs (number of passes through rollout data per update)"
     )
     parser.add_argument(
+        "--n-steps",
+        type=int,
+        default=None,
+        help="Override PPO n_steps (rollout length per env)"
+    )
+    parser.add_argument(
         "--no-eval",
         action="store_true",
         help="Disable evaluation during training"
@@ -295,8 +241,20 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--cohort-spawn",
         action="store_true",
-        help="PPO cohort spawning: all envs share the same random start per rollout. "
-             "Gives PPO coherent gradients with random positions. Ignored for SAC."
+        help="(Deprecated) PPO cohort spawning is enabled by default. "
+             "Use --no-cohort-spawn to disable. Ignored for SAC."
+    )
+    parser.add_argument(
+        "--no-cohort-spawn",
+        action="store_true",
+        help="Disable PPO cohort spawning (use config.random_start or fixed start instead)"
+    )
+    parser.add_argument(
+        "--cohort-checkpoint",
+        type=int,
+        default=None,
+        help="Fixed checkpoint index for PPO cohort spawning. "
+             "When set, all rollouts start at this checkpoint (ignores randomness)."
     )
     parser.add_argument(
         "--normalize",
@@ -306,7 +264,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--cnn",
         action="store_true",
-        help="Use CNN policy with occupancy grid observations (sets obs_type='grid', uses CnnPolicy)"
+        help="Deprecated (forces obs_type='grid'); kept for backward compatibility"
     )
 
     # Phase 3: Plasticity loss prevention arguments
@@ -320,6 +278,12 @@ def build_arg_parser() -> argparse.ArgumentParser:
         type=float,
         default=None,
         help="L2 regularization weight (weight_decay for optimizer, e.g. 0.0001)"
+    )
+    parser.add_argument(
+        "--dropout",
+        type=float,
+        default=None,
+        help="Dropout probability for policy/value MLPs (0 disables)"
     )
     parser.add_argument(
         "--adam-betas",
@@ -380,30 +344,49 @@ def parse_args(argv=None):
     return parser.parse_args(argv)
 
 
-def make_env(config: EnvConfig, rank: int, seed: int = 0):
+def parse_config_list_arg(config_list: Optional[str]) -> list[str]:
+    """Parse comma-separated config list CLI argument."""
+    if not config_list:
+        return []
+    paths = [p.strip() for p in config_list.split(",") if p.strip()]
+    if not paths:
+        raise ValueError("--config-list must contain at least one path.")
+    return paths
+
+
+def load_config_list(paths: list[str]) -> list[EnvConfig]:
+    """Load EnvConfig objects from a list of paths."""
+    return [EnvConfig.from_yaml(path) for path in paths]
+
+
+def get_num_checkpoints(config: EnvConfig) -> int:
+    """Resolve the checkpoint count for a config."""
+    if config.track.track_type == "custom" and config.track.custom is not None:
+        return config.track.custom.num_checkpoints
+    return 64
+
+
+def make_env(
+    configs: list[EnvConfig],
+    rank: int,
+    seed: int = 0,
+    multi_track: bool = False,
+    multi_track_mode: str = "round_robin",
+):
     """Create a function that returns an environment instance."""
     def _init():
         from stable_baselines3.common.monitor import Monitor
-        from racing_sim.envs.racing_env import RacingEnv
 
-        env = RacingEnv(config=config, render_mode=None)
+        if multi_track:
+            from racing_sim.envs.multi_track_env import MultiTrackEnv
+            env = MultiTrackEnv(configs=configs, render_mode=None, mode=multi_track_mode)
+        else:
+            from racing_sim.envs.racing_env import RacingEnv
+            env = RacingEnv(config=configs[0], render_mode=None)
         env = Monitor(env)
         env.reset(seed=seed + rank)
         return env
     return _init
-
-
-def resolve_env_config(path_str: Optional[str]) -> Tuple[EnvConfig, str]:
-    """Load config from path or default config file."""
-    if path_str:
-        return EnvConfig.from_yaml(path_str), path_str
-
-    # Try physics_v2.yaml as the default (new physics baseline)
-    default_path = Path(__file__).parent.parent / "configs" / "physics_v2.yaml"
-    if default_path.exists():
-        return EnvConfig.from_yaml(str(default_path)), str(default_path)
-
-    return EnvConfig(), "EnvConfig() defaults"
 
 
 def make_vec_env(env_fns, vec_env_type: str):
@@ -438,7 +421,7 @@ def make_save_vec_normalize_callback(save_path: str, env):
     return SaveVecNormalizeCallback()
 
 
-def make_cohort_spawn_callback(num_checkpoints: int):
+def make_cohort_spawn_callback(num_checkpoints: int, fixed_checkpoint: int | None = None):
     """Create a callback that synchronizes spawn checkpoints across all envs.
 
     At the start of each PPO rollout, picks a random checkpoint and sets it
@@ -453,9 +436,13 @@ def make_cohort_spawn_callback(num_checkpoints: int):
         def __init__(self):
             super().__init__()
             self.num_checkpoints = num_checkpoints
+            self.fixed_checkpoint = fixed_checkpoint
 
         def _on_rollout_start(self):
-            checkpoint = _random.randint(0, self.num_checkpoints - 1)
+            if self.fixed_checkpoint is not None:
+                checkpoint = int(self.fixed_checkpoint) % max(self.num_checkpoints, 1)
+            else:
+                checkpoint = _random.randint(0, self.num_checkpoints - 1)
             self.training_env.env_method("set_spawn_checkpoint", checkpoint)
             if self.verbose > 0:
                 self.logger.record("cohort/spawn_checkpoint", checkpoint)
@@ -491,92 +478,104 @@ def make_lr_schedule(initial_lr: float, schedule_type: str):
         raise ValueError(f"Unknown schedule type: {schedule_type}")
 
 
-def build_preset_kwargs(args) -> dict:
-    """Build preset kwargs with CLI overrides applied."""
-    preset_kwargs = PRESETS[args.algo][args.preset].copy()
+def build_training_kwargs(args, defaults: dict) -> Tuple[dict, dict]:
+    """Build training kwargs with CLI overrides applied.
+
+    Returns:
+        (training_kwargs, extra_defaults) where extra_defaults holds
+        non-SB3 values like l2_reg.
+    """
+    training_kwargs = defaults[args.algo].copy()
+    extra_defaults = {}
+    if "l2_reg" in training_kwargs:
+        extra_defaults["l2_reg"] = training_kwargs.pop("l2_reg")
     if args.learning_rate is not None:
-        preset_kwargs["learning_rate"] = args.learning_rate
+        training_kwargs["learning_rate"] = args.learning_rate
     if args.lr_schedule is not None:
-        base_lr = preset_kwargs.get("learning_rate", 3e-4)
+        base_lr = training_kwargs.get("learning_rate", 3e-4)
         if not isinstance(base_lr, (int, float)):
             base_lr = 3e-4
-        preset_kwargs["learning_rate"] = make_lr_schedule(float(base_lr), args.lr_schedule)
+        training_kwargs["learning_rate"] = make_lr_schedule(float(base_lr), args.lr_schedule)
     if args.clip_range is not None and args.algo == "ppo":
-        preset_kwargs["clip_range"] = args.clip_range
+        training_kwargs["clip_range"] = args.clip_range
     if args.gamma is not None:
-        preset_kwargs["gamma"] = args.gamma
+        training_kwargs["gamma"] = args.gamma
     if args.gae_lambda is not None and args.algo == "ppo":
-        preset_kwargs["gae_lambda"] = args.gae_lambda
+        training_kwargs["gae_lambda"] = args.gae_lambda
     if args.ent_coef is not None:
         if args.algo == "ppo":
-            preset_kwargs["ent_coef"] = float(args.ent_coef)
+            training_kwargs["ent_coef"] = float(args.ent_coef)
         else:
             try:
-                preset_kwargs["ent_coef"] = float(args.ent_coef)
+                training_kwargs["ent_coef"] = float(args.ent_coef)
             except ValueError:
-                preset_kwargs["ent_coef"] = args.ent_coef
+                training_kwargs["ent_coef"] = args.ent_coef
     if args.algo == "ppo" and args.target_kl is not None:
-        preset_kwargs["target_kl"] = args.target_kl
+        training_kwargs["target_kl"] = args.target_kl
     if args.algo == "ppo" and args.n_epochs is not None:
-        preset_kwargs["n_epochs"] = args.n_epochs
+        training_kwargs["n_epochs"] = args.n_epochs
+    if args.algo == "ppo" and args.n_steps is not None:
+        training_kwargs["n_steps"] = args.n_steps
+    if args.algo == "ppo" and args.ppo_batch_size is not None:
+        training_kwargs["batch_size"] = args.ppo_batch_size
     if args.algo == "sac" and args.target_entropy is not None:
-        preset_kwargs["target_entropy"] = args.target_entropy
+        training_kwargs["target_entropy"] = args.target_entropy
     if args.algo == "sac":
         if args.batch_size is not None:
-            preset_kwargs["batch_size"] = args.batch_size
+            training_kwargs["batch_size"] = args.batch_size
         if args.buffer_size is not None:
-            preset_kwargs["buffer_size"] = args.buffer_size
+            training_kwargs["buffer_size"] = args.buffer_size
         if args.learning_starts is not None:
-            preset_kwargs["learning_starts"] = args.learning_starts
+            training_kwargs["learning_starts"] = args.learning_starts
         if args.train_freq is not None:
-            preset_kwargs["train_freq"] = args.train_freq
+            training_kwargs["train_freq"] = args.train_freq
         if args.gradient_steps is not None:
-            preset_kwargs["gradient_steps"] = args.gradient_steps
+            training_kwargs["gradient_steps"] = args.gradient_steps
         if args.tau is not None:
-            preset_kwargs["tau"] = args.tau
-    return preset_kwargs
+            training_kwargs["tau"] = args.tau
+    if args.l2_reg is not None:
+        extra_defaults["l2_reg"] = args.l2_reg
+    return training_kwargs, extra_defaults
 
 
-def apply_known_good_defaults(args, config: EnvConfig) -> None:
-    """Apply empirically proven defaults when the user doesn't specify them."""
-    if args.algo != "ppo":
-        return
-
-    # Defaults differ between CNN (grid) and lidar runs.
-    if config.obs_type == "grid":
-        if args.learning_rate is None:
-            args.learning_rate = 3e-4
-        if args.ent_coef is None:
-            args.ent_coef = "0.02"
-        if args.target_kl is None:
-            args.target_kl = 0.05
-        if args.l2_reg is None:
-            args.l2_reg = 0.0001
-    else:
-        if args.learning_rate is None:
-            args.learning_rate = 0.003
-        if args.ent_coef is None:
-            args.ent_coef = "0.02"
+def normalize_dropout(dropout: Optional[float]) -> Optional[float]:
+    """Normalize and validate dropout probability."""
+    if dropout is None:
+        return None
+    if dropout < 0.0 or dropout >= 1.0:
+        raise ValueError("--dropout must be in the range [0, 1).")
+    if dropout == 0.0:
+        return None
+    return float(dropout)
 
 
 def main():
     """Main training function."""
     args = parse_args()
 
-    # Load config
-    config, config_source = resolve_env_config(args.config)
+    if args.config_list and args.config:
+        raise ValueError("--config and --config-list are mutually exclusive.")
 
-    # Apply CLI overrides to config
-    if args.random_start:
-        config.random_start = True
-    if args.cnn:
-        config.obs_type = "grid"
+    config_list_paths = parse_config_list_arg(args.config_list)
+    if config_list_paths:
+        configs = load_config_list(config_list_paths)
+        config_source = "config-list: " + ", ".join(config_list_paths)
+    else:
+        config, config_source = resolve_env_config(args.config)
+        configs = [config]
 
-    apply_known_good_defaults(args, config)
+    # Apply CLI overrides to configs
+    for cfg in configs:
+        # CNN flag (deprecated): force grid if requested
+        if args.cnn and cfg.obs_type != "grid":
+            print("Note: forcing obs_type='grid' due to --cnn.")
+            cfg.obs_type = "grid"
+
+    config = configs[0]
 
     # Create directories
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    run_name = f"{args.algo}_{args.preset}_{timestamp}"
+    run_name = f"{args.algo}_{timestamp}"
 
     log_dir = Path(args.log_dir) / run_name
     model_dir = Path(args.model_dir) / run_name
@@ -585,28 +584,56 @@ def main():
     model_dir.mkdir(parents=True, exist_ok=True)
 
     # Cohort spawn: override random_start for PPO
-    use_cohort_spawn = False
-    if args.cohort_spawn:
-        if args.algo == "sac":
-            print("Warning: --cohort-spawn is ignored for SAC (SAC handles random starts natively)")
-        else:
-            use_cohort_spawn = True
-            # Disable per-env random_start since the callback handles it
-            config.random_start = False
+    use_cohort_spawn = args.algo == "ppo" and not args.no_cohort_spawn
+    if args.algo == "sac":
+        if args.cohort_spawn or args.no_cohort_spawn:
+            print("Warning: cohort-spawn flags are ignored for SAC (SAC handles random starts natively)")
+        use_cohort_spawn = False
+
+    if use_cohort_spawn:
+        checkpoint_counts = {get_num_checkpoints(cfg) for cfg in configs}
+        if len(checkpoint_counts) > 1:
+            print("Warning: cohort spawn disabled (configs have different num_checkpoints).")
+            use_cohort_spawn = False
+
+    if use_cohort_spawn:
+        # Disable per-env random_start since the callback handles it
+        for cfg in configs:
+            cfg.random_start = False
+    elif args.random_start:
+        for cfg in configs:
+            cfg.random_start = True
+
+    multi_track = len(configs) > 1
 
     print(f"Training {args.algo.upper()} for {args.total_timesteps} timesteps")
     print(f"Using {args.n_envs} parallel environments")
-    print(f"Preset: {args.preset}")
     print(f"Config: {config_source}")
+    if multi_track:
+        print(f"Multi-track: enabled ({args.multi_track_mode}, {len(configs)} configs)")
     print(f"Obs type: {config.obs_type}")
     print(f"Random start: {config.random_start}")
     if use_cohort_spawn:
-        print(f"Cohort spawn: enabled (synchronized random starts per rollout)")
+        if args.cohort_checkpoint is None:
+            print("Cohort spawn: enabled (synchronized random starts per rollout)")
+        else:
+            print(f"Cohort spawn: enabled (fixed checkpoint={args.cohort_checkpoint})")
+    elif args.algo == "ppo":
+        print("Cohort spawn: disabled (using config.random_start)")
     print(f"Logs: {log_dir}")
     print(f"Models: {model_dir}")
 
     # Create vectorized environment
-    env_fns = [make_env(config, i, args.seed) for i in range(args.n_envs)]
+    env_fns = [
+        make_env(
+            configs,
+            i,
+            args.seed,
+            multi_track=multi_track,
+            multi_track_mode=args.multi_track_mode,
+        )
+        for i in range(args.n_envs)
+    ]
     env = make_vec_env(env_fns, args.vec_env)
 
     # Wrap with VecNormalize for reward normalization (helps SAC stability)
@@ -618,7 +645,15 @@ def main():
     # Create evaluation environment
     eval_env = None
     if not args.no_eval:
-        eval_env = make_vec_env([make_env(config, 0, args.seed + 1000)], "dummy")
+        eval_env = make_vec_env([
+            make_env(
+                configs,
+                0,
+                args.seed + 1000,
+                multi_track=multi_track,
+                multi_track_mode=args.multi_track_mode,
+            )
+        ], "dummy")
         # If training env uses VecNormalize, eval env must also be wrapped for compatibility
         if args.normalize:
             eval_env = VecNormalize(eval_env, norm_obs=False, norm_reward=True, clip_reward=10.0, gamma=0.99, training=False)
@@ -658,11 +693,11 @@ def main():
         callbacks.append(eval_callback)
     # Add cohort spawn callback for PPO random starts
     if use_cohort_spawn:
-        if config.track.track_type == "custom" and config.track.custom is not None:
-            num_checkpoints = config.track.custom.num_checkpoints
-        else:
-            num_checkpoints = 64  # Default for elliptical tracks
-        cohort_callback = make_cohort_spawn_callback(num_checkpoints=num_checkpoints)
+        num_checkpoints = get_num_checkpoints(configs[0])
+        cohort_callback = make_cohort_spawn_callback(
+            num_checkpoints=num_checkpoints,
+            fixed_checkpoint=args.cohort_checkpoint,
+        )
         callbacks.append(cohort_callback)
 
     # Add Shrink+Perturb callback for plasticity restoration
@@ -703,17 +738,16 @@ def main():
 
     # Create model
     tensorboard_log = None if args.no_tensorboard else str(log_dir)
-    preset_kwargs = build_preset_kwargs(args)
+    training_defaults, _ = load_training_presets()
+    training_kwargs, extra_defaults = build_training_kwargs(args, training_defaults)
+    if "l2_reg" in extra_defaults:
+        args.l2_reg = extra_defaults["l2_reg"]
+
+    args.dropout = normalize_dropout(args.dropout)
 
     # Determine policy class
-    if args.layernorm:
-        if config.obs_type == "grid":
-            raise ValueError("--layernorm is not compatible with --cnn (CNN uses separate feature extractor)")
-        from racing_sim.policies.layernorm_policy import LayerNormActorCriticPolicy
-        policy = LayerNormActorCriticPolicy
-        print("Using LayerNorm policy (prevents dead ReLUs and weight explosion)")
-    else:
-        policy = "CnnPolicy" if config.obs_type == "grid" else "MlpPolicy"
+    if args.layernorm and config.obs_type == "grid":
+        raise ValueError("--layernorm is not compatible with grid observations")
 
     # Build policy_kwargs for optimizer customization
     policy_kwargs = {}
@@ -730,13 +764,27 @@ def main():
     if optimizer_kwargs:
         policy_kwargs["optimizer_kwargs"] = optimizer_kwargs
 
+    if args.dropout is not None:
+        policy_kwargs["dropout"] = args.dropout
+        print(f"Dropout enabled (p={args.dropout})")
+
+    policy = "CnnPolicy" if config.obs_type == "grid" else "MlpPolicy"
+    if args.dropout is not None:
+        from racing_sim.policies.dropout_policy import DropoutActorCriticPolicy, DropoutSACPolicy
+
+        policy = DropoutActorCriticPolicy if args.algo == "ppo" else DropoutSACPolicy
+        if config.obs_type == "grid":
+            from stable_baselines3.common.torch_layers import NatureCNN
+
+            policy_kwargs["features_extractor_class"] = NatureCNN
+
     if args.algo == "ppo":
         from stable_baselines3 import PPO
 
         model = PPO(
             policy=policy,
             env=env,
-            **preset_kwargs,
+            **training_kwargs,
             policy_kwargs=policy_kwargs if policy_kwargs else None,
             verbose=1,
             tensorboard_log=tensorboard_log,
@@ -749,7 +797,7 @@ def main():
         model = SAC(
             policy=policy,
             env=env,
-            **preset_kwargs,
+            **training_kwargs,
             policy_kwargs=policy_kwargs if policy_kwargs else None,
             verbose=1,
             tensorboard_log=tensorboard_log,

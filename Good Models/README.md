@@ -1,21 +1,24 @@
-# Good Models Index
+# Good Models Index (Current Physics)
 
-Trained models that set records or demonstrate novel techniques. Each folder contains the model weights, config, and a README with training details.
+Baselines for the current physics model using the custom track configs in `racing_sim/configs/custom_tracks/`.
 
-## Active Models
+**Legacy models:** See `legacy/Good Models/README.md` for the historical results and legacy physics snapshots.
+**Note:** Model weights (`.zip`) are not committed to git.
 
-| Model | Algorithm | Track | Obs Type | Reward |
-|-------|-----------|-------|----------|--------|
-| PPO CNN L2Reg Wavy V2 - 252.60 Reward | PPO+CNN | Wavy V2 | Grid 36x36 | **252.60** |
-| PPO CNN Wavy V2 LR0.0003 - 249.43 Reward | PPO+CNN | Wavy V2 | Grid 36x36 | 249.43 |
-| PPO Wavy V2 Ent0p02 LR0p001 500k - 247.26 Reward | PPO | Wavy V2 | Lidar 9-ray | 247.26 |
-| Fast Iter V3 Complex Wavy V1 Progress0p5 LR3e-3 Ent0p03 | PPO | Wavy V1 | Lidar | 237.57 |
-| Fast Iter V3 Complex Progress0p5 LR3e-3 Ent0p02 | PPO | Simple | Lidar | 252.49 |
-| SAC Wavy V1 GradSteps4 LR3e-3 AutoEnt | SAC | Wavy V1 | Lidar | 209.09 |
-| SAC Wavy V2 Random Start 183.7 at 90k | SAC | Wavy V2 | Lidar | 183.70 |
+| Model | Track | Reward | Steps (best) |
+|-------|-------|--------|--------------|
+| PPO Simple Custom Track - 30.59 Reward | simple | 30.59 | 440k |
+| PPO Supersimple Custom Track - 47.31 Reward | supersimple | 47.31 | ~890k |
+| PPO Square Test Custom Track - 63.92 Reward | square_test | 63.92 | ~790k |
+| PPO Track1 Custom Track - 25.14 Reward | track1 | 25.14 | ~630k |
+| PPO Track2 Custom Track - 37.00 Reward | track2 | 37.00 | 480k |
+| PPO Track3 Custom Track - 23.13 Reward | track3 | 23.13 | ~440k |
+| PPO Track4 Custom Track - 30.59 Reward | track4 | 30.59 | 640k |
 
-All models validated with `validate.py --episodes 1 --deterministic`.
+## Multi-Track Models
 
-## Archived
+| Model | Tracks | Mean Reward | Steps (best) |
+|-------|--------|-------------|--------------|
+| PPO Multi-Track Top3 - 31.74 Mean Reward | square_test, supersimple, track2 | 31.74 | ~190k |
 
-Superseded models are in `_archived/` with their README status set to ARCHIVED and a pointer to the replacement.
+All models validated with `validate.py --episodes 3 --deterministic`.

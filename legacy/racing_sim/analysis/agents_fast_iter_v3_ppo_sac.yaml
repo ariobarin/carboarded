@@ -1,0 +1,23 @@
+agents:
+  - name: ppo_fast_v3_playable
+    type: sb3
+    algo: ppo
+    model_path: models/ppo_fast_20260127_010647/best/best_model.zip
+  - name: sac_fast_v3_playable
+    type: sb3
+    algo: sac
+    model_path: models/sac_fast_20260127_075745/best/best_model.zip
+  - name: sac_balanced_v3_playable
+    type: sb3
+    algo: sac
+    model_path: models/sac_balanced_20260127_080217/best/best_model.zip
+  - name: rule_based_tuned_v3_playable
+    type: rule
+    params:
+      steer_gain: 2.0
+      throttle_base: 0.3
+      throttle_gain: 0.8
+      brake_dist: 0.4
+      throttle_min: 0.0
+  - name: random
+    type: random

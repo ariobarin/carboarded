@@ -1,4 +1,4 @@
-# Phase One Summary
+﻿# Phase One Summary
 
 **Date:** January 2026
 **Goal:** Train PPO and SAC agents on increasingly difficult 2D racing tracks.
@@ -11,11 +11,11 @@ All models validated with `validate.py --episodes 1 --deterministic` on 2026-01-
 
 | Algorithm | Track | Best Reward | Steps | Model |
 |-----------|-------|-------------|-------|-------|
-| PPO | Simple | **252.49** | 80k | Good Models/Fast Iter V3 Complex Progress0p5.../ |
-| PPO | Wavy V1 | **237.57** | 80k | Good Models/Fast Iter V3 Complex Wavy V1.../ |
-| PPO | Wavy V2 | **247.26** | 220k | Good Models/PPO Wavy V2 Ent0p02 LR0p001 500k.../ |
-| SAC | Wavy V1 | 209.09 | 40k | Good Models/SAC Wavy V1 GradSteps4.../ |
-| SAC | Wavy V2 | 183.70 | 90k | Good Models/SAC Wavy V2 Random Start.../ |
+| PPO | Simple | **252.49** | 80k | legacy/Good Models/Fast Iter V3 Complex Progress0p5.../ |
+| PPO | Wavy V1 | **237.57** | 80k | legacy/Good Models/Fast Iter V3 Complex Wavy V1.../ |
+| PPO | Wavy V2 | **247.26** | 220k | legacy/Good Models/PPO Wavy V2 Ent0p02 LR0p001 500k.../ |
+| SAC | Wavy V1 | 209.09 | 40k | legacy/Good Models/SAC Wavy V1 GradSteps4.../ |
+| SAC | Wavy V2 | 183.70 | 90k | legacy/Good Models/SAC Wavy V2 Random Start.../ |
 
 All PPO models: 0.00 std dev, 100% success rate (>200). Deterministic mode produces identical rewards every episode.
 
@@ -69,13 +69,13 @@ See `Learnings/What Didnt Work.md` for the full anti-pattern guide.
 
 ```bash
 # PPO Wavy V2 (lidar) -- 247.26 reward
-py scripts/train.py --algo ppo --preset fast --total-timesteps 500000 \
+py scripts/train.py --algo ppo --total-timesteps 500000 \
   --config configs/wavy_v2_progress_0p75.yaml \
   --learning-rate 0.001 --ent-coef 0.02 \
   --save-freq 50000 --eval-freq 20000 --eval-episodes 5
 
 # SAC Wavy V2 (random start) -- 183.70 reward
-py scripts/train.py --algo sac --preset fast --total-timesteps 100000 \
+py scripts/train.py --algo sac --total-timesteps 100000 \
   --config configs/fast_iter_v3_complex_wavy_v2_progress_0p7.yaml \
   --random-start --ent-coef auto --gradient-steps 4 --learning-starts 0
 ```
@@ -88,3 +88,4 @@ Raw experiment data preserved in `Learnings/_archived/`:
 - `Overnight Experiment Results.md` -- full 15-experiment LR/entropy sweep
 - `Validation Results.md` -- per-model validation details
 - `Phase One - Experiment Log (Archive).md` -- 20KB raw experiment log
+

@@ -1,0 +1,19 @@
+agents:
+  - name: ppo_fast_complex
+    type: sb3
+    algo: ppo
+    model_path: models/ppo_fast_20260127_084859/best/best_model.zip
+  - name: sac_fast_complex
+    type: sb3
+    algo: sac
+    model_path: models/sac_fast_20260127_085439/best/best_model.zip
+  - name: rule_based_tuned_complex
+    type: rule
+    params:
+      steer_gain: 1.2
+      throttle_base: 0.3
+      throttle_gain: 0.8
+      brake_dist: 0.3
+      throttle_min: 0.0
+  - name: random
+    type: random

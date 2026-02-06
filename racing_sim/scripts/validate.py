@@ -9,8 +9,8 @@ import numpy as np
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from racing_sim.envs.racing_env import RacingEnv
-from racing_sim.config.config import EnvConfig
-from racing_sim.utils.model import load_model
+from racing_sim.config.defaults import resolve_env_config
+from racing_sim.utils.model import infer_obs_type, load_model
 
 
 def run_validation(
@@ -24,19 +24,22 @@ def run_validation(
     model_path = Path(model_path)
 
     # Load config
-    if config_path:
-        config = EnvConfig.from_yaml(config_path)
-    else:
-        config = EnvConfig()
+    config, _ = resolve_env_config(config_path)
 
     config.random_start = False
 
-    # Create environment
-    env = RacingEnv(config=config, render_mode=None)
-
-    # Load model using shared utility
+    # Load model first so we can auto-detect obs_type before creating the env
     model = load_model(model_path, algo=algo)
     algo_name = "PPO" if type(model).__name__ == "PPO" else "SAC"
+
+    # Reconcile obs_type with model's observation space
+    detected = infer_obs_type(model)
+    if detected and detected != config.obs_type:
+        print(f"Note: model expects '{detected}' observations, overriding config obs_type='{config.obs_type}'")
+        config.obs_type = detected
+
+    # Create environment
+    env = RacingEnv(config=config, render_mode=None)
 
     print(f"Validating {algo_name} model: {model_path}")
     print(f"Episodes: {num_episodes}, Deterministic: {deterministic}")

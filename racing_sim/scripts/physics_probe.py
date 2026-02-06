@@ -15,6 +15,7 @@ import sys
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from racing_sim.config.config import EnvConfig
+from racing_sim.config.defaults import resolve_env_config
 from racing_sim.envs.racing_env import RacingEnv
 
 
@@ -64,11 +65,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
 
 
 def _load_config(path: Optional[str]) -> EnvConfig:
-    if path:
-        config = EnvConfig.from_yaml(path)
-    else:
-        default_path = Path(__file__).parent.parent / "configs" / "physics_v2.yaml"
-        config = EnvConfig.from_yaml(str(default_path))
+    config, _ = resolve_env_config(path)
 
     # Force simple ellipse for probe.
     config.track.waviness = 0.0

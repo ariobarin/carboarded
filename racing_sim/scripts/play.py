@@ -11,11 +11,11 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 import numpy as np
 
 from racing_sim.envs.racing_env import RacingEnv
-from racing_sim.config.config import EnvConfig
+from racing_sim.config.defaults import resolve_env_config
 from racing_sim.physics.car import Car
 from racing_sim.sensors.lidar import Lidar
 from racing_sim.sensors.grid import compute_grid
-from racing_sim.utils.model import detect_algo_from_model, load_model
+from racing_sim.utils.model import detect_algo_from_model, infer_obs_type, load_model
 
 
 def parse_args():
@@ -248,7 +248,7 @@ def run_race_mode(env: RacingEnv, model, deterministic: bool = True) -> None:
 
     def reset_race():
         env.reset()
-        env.car.sensor_only = True
+        env.car.sensor_only = False
         ai_car.reset(
             position=(env.car.position.x, env.car.position.y),
             angle=env.car.angle,
@@ -281,7 +281,7 @@ def run_race_mode(env: RacingEnv, model, deterministic: bool = True) -> None:
         obs, reward, terminated, truncated, info = env.step(action)
 
         # If human crashed, reset immediately (before rendering the crash)
-        if info["collided"]:
+        if info["collided"] and env.config.terminate_on_collision:
             print(f"Crashed! (Checkpoints: {info['checkpoints_passed']})")
             reset_race()
             continue
@@ -334,10 +334,7 @@ def main():
         return
 
     # Load config
-    if args.config:
-        config = EnvConfig.from_yaml(args.config)
-    else:
-        config = EnvConfig()
+    config, _ = resolve_env_config(args.config)
 
     # Disable random start by default for play/race modes (toggle with T)
     config.random_start = False
@@ -346,8 +343,25 @@ def main():
     if args.cnn:
         config.obs_type = "grid"
 
+    # Load model early so we can auto-detect obs_type before creating the env
+    model = None
+    algo = args.algo
+    if args.model:
+        model_path = Path(args.model)
+        if algo == "auto":
+            algo = detect_algo_from_model(model_path)
+
+        model = load_model(model_path, algo=algo)
+
+        # Reconcile obs_type: model's obs space wins unless --cnn was explicit
+        if not args.cnn:
+            detected = infer_obs_type(model)
+            if detected and detected != config.obs_type:
+                print(f"Note: model expects '{detected}' observations, overriding config obs_type='{config.obs_type}'")
+                config.obs_type = detected
+
     # Enable grid visualization if requested
-    if args.show_grid or args.cnn:
+    if args.show_grid or config.obs_type == "grid":
         config.render.show_grid = True
 
     # Override FPS if requested
@@ -360,15 +374,9 @@ def main():
     print("Racing Simulation")
     print("=" * 40)
 
-    if args.model:
-        model_path = Path(args.model)
-        algo = args.algo
-        if algo == "auto":
-            algo = detect_algo_from_model(model_path)
-            print(f"Auto-detected algorithm: {algo.upper()}")
-
-        print(f"Loading model from {model_path}")
-        model = load_model(model_path, algo=algo)
+    if model is not None:
+        print(f"Algorithm: {algo.upper()}")
+        print(f"Model: {args.model}")
 
         if args.race:
             run_race_mode(env, model, args.deterministic)

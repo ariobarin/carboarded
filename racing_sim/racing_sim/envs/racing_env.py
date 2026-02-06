@@ -4,7 +4,6 @@ import gymnasium as gym
 from gymnasium import spaces
 import numpy as np
 import pymunk
-import math
 from typing import Optional, Tuple, Dict, Any
 from racing_sim.config.config import EnvConfig
 from racing_sim.physics.car import Car
@@ -20,16 +19,16 @@ from racing_sim.utils.reward import compute_slowdown_penalty
 
 class RacingEnv(gym.Env):
     """
-    2D Racing Environment with Lidar observations.
+    2D Racing Environment.
 
-    Observation Space: Box(0, 1, shape=(5,)) - 5 normalized lidar distances
+    Observation Space:
+        - "lidar" mode: Box(0, 1, shape=(num_rays,)) - normalized lidar distances
+        - "grid" mode: Box(0, 255, shape=(grid_size, grid_size, 1)) - binary occupancy grid
+
     Action Space: Box([-1, 0], [1, 1]) - [steering, throttle]
 
-    Reward:
-        - +checkpoint_reward per checkpoint passed
-        - +speed_bonus_scale * (speed / max_speed) per step
-        - collision_penalty on wall hit (terminates episode)
-        - time_penalty per step
+    Reward: checkpoint bonus + progress shaping + speed bonus + collision penalty.
+    See CLAUDE.md or configs/README.md for the full reward breakdown.
     """
 
     metadata = {"render_modes": ["human", "rgb_array"], "render_fps": 60}
@@ -48,7 +47,7 @@ class RacingEnv(gym.Env):
         """
         super().__init__()
 
-        self.config = config or EnvConfig()
+        self.config = config or EnvConfig.default()
         self.render_mode = render_mode
 
         # Observation space depends on obs_type
@@ -138,7 +137,8 @@ class RacingEnv(gym.Env):
 
         # Create renderer if needed
         if self.render_mode is not None:
-            self.renderer = Renderer(self.config.render, self.render_mode)
+            self.renderer = Renderer(self.config.render, self.render_mode,
+                                     grid_config=self.config.grid)
 
     def _apply_lateral_spawn_offset(self, start_pos: pymunk.Vec2d, checkpoint_idx: int) -> pymunk.Vec2d:
         """Apply a random lateral offset from the checkpoint centerline."""
@@ -332,12 +332,16 @@ class RacingEnv(gym.Env):
             self.last_checkpoint = current_checkpoint
             self.checkpoints_passed += passed
 
-        # Collision penalty
-        if self.car.collided and self.config.wall_contact_penalty == 0.0:
+        # Collision penalty applies only when collisions are terminal.
+        if self.car.collided and self.config.terminate_on_collision:
             reward += self.config.collision_penalty
 
-        # Wall contact penalty (per-step while touching, resets when separated)
-        if self.config.wall_contact_penalty != 0.0 and self.car.touching_wall:
+        # Wall contact penalty applies only for non-terminal collisions.
+        if (
+            not self.config.terminate_on_collision
+            and self.config.wall_contact_penalty != 0.0
+            and self.car.touching_wall
+        ):
             reward += self.config.wall_contact_penalty
 
         # Progress reward (continuous around track)
@@ -360,14 +364,6 @@ class RacingEnv(gym.Env):
             )
 
         return reward
-
-    def _get_progress_angle(self, position) -> float:
-        """Return normalized angle around track center in [0, 2pi)."""
-        delta = position - self.track.center
-        angle = math.atan2(delta.y, delta.x)
-        if angle < 0:
-            angle += math.tau
-        return angle
 
     def _get_info(self) -> Dict[str, Any]:
         """Get info dictionary for debugging."""

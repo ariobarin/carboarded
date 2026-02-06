@@ -10,6 +10,9 @@ __pycache__/
 # Test/build caches
 .pytest_cache/
 .ruff_cache/
+.coverage
+coverage.xml
+htmlcov/
 
 # IDE / tool config
 .claude/
@@ -20,6 +23,18 @@ racing_sim/logs/
 racing_sim/models/
 logs/
 models/
+
+# Trained model weights (too large for git)
+Good Models/**/*.zip
+legacy/Good Models/**/*.zip
+
+# Temp/debug scripts
+_tmp*
+
+# Secrets / credentials
+.env*
+*.pem
+*.key
 
 # Windows artifacts
 nul
