@@ -28,7 +28,7 @@
 
 ## Key Parameters
 
-- **`obs_type`**: `"lidar"` (MLP, 9-ray) or `"grid"` (CNN, 36x36 occupancy grid)
+- **`obs_type`**: `"grid"` (CNN, 36x36 occupancy grid, default) or `"lidar"` (MLP, 9-ray)
 - **`progress_reward_scale`**: 0.5-0.75 recommended. Primary convergence driver. Values >= 0.8 cause instability.
 - **`collision_penalty`**: Applied once on wall hit when `terminate_on_collision: true`.
 - **`random_start`**: Start car at a random checkpoint each episode (helps SAC, hurts PPO).

@@ -120,7 +120,80 @@ Track3 remains the hardest track. None of the GRPO-inspired modifications improv
 - Richer reward signal (higher progress + speed bonus) produced the biggest gain on track1 (+30%) and the improvement is real (validated on standard config).
 - Track3 is resistant to all PPO hyperparameter changes tested.
 
+## Reward Shaping Sweep + Track3 Experiments (v4)
+
+Reward shaping (progress=0.65, speed=0.03) applied to all remaining tracks. Also tested combined modifications and higher entropy on track3.
+All runs: 1M steps, linear LR, eval-freq 10000, eval-episodes 3. Easy tracks used 4 envs; hard tracks used 1 env.
+**Note:** v4 runs were executed in parallel (CPU overloaded). Lidar runs completed; grid obs runs (B1/B2/D3) did NOT complete and need to be rerun.
+
+### Batch A: Combine Winners (reward shaping + n_steps=2048)
+
+| Track | Run dir | Validation (3 ep, std config) | Baseline | Delta |
+|-------|---------|-------------------------------|----------|-------|
+| track3 | `models/ppo_20260205_205145` | 0.15 | 23.13 | -99% (collapsed) |
+| track1 | `models/ppo_20260205_205149` | 32.75 | 32.80 | ~0% |
+
+Result: Combining reward shaping + larger rollouts provides no benefit over reward shaping alone on track1, and catastrophically collapses on track3.
+
+### Batch C: Reward Shaping Sweep (remaining tracks)
+
+All validated against **standard** configs (not reward_exp) for fair comparison with v2 baselines.
+
+| Track | Run dir | Envs | Validation (3 ep, std config) | Baseline | Delta |
+|-------|---------|------|-------------------------------|----------|-------|
+| simple | `models/ppo_20260205_205202` | 4 | **32.68** | 30.59 | **+7%** |
+| supersimple | `models/ppo_20260205_205214` | 4 | 47.26 | 47.31 | ~0% |
+| square_test | `models/ppo_20260205_205218` | 4 | 64.02 | 63.92 | ~0% |
+| track2 | `models/ppo_20260205_205236` | 1 (ent=0.03) | 27.36 | 37.00 | **-26%** |
+| track4 | `models/ppo_20260205_205241` | 4 | 30.63 | 30.59 | ~0% |
+
+Result: Reward shaping gives a modest +7% on simple, is neutral on supersimple/square_test/track4, and actively harmful on track2 (-26%). Track2's collapse with reward shaping may stem from interaction with higher entropy (0.03) needed for that track.
+
+### Batch D: Higher Entropy for track3 (ent_coef=0.03)
+
+| Track | Config | Run dir | Validation (3 ep, std config) | Baseline | Delta |
+|-------|--------|---------|-------------------------------|----------|-------|
+| track3 | standard | `models/ppo_20260205_205246` | 16.66 | 23.13 | **-28%** |
+| track3 | reward_exp | `models/ppo_20260205_205256` | 16.61 | 23.13 | **-28%** |
+
+Result: Higher entropy that rescued track2 actively hurts track3. The two tracks have fundamentally different exploration needs.
+
+### Batch B: Grid/CNN Obs on track3 (INCOMPLETE)
+
+Grid runs were killed due to CPU overload from parallel execution (~80 fps vs ~300 for lidar). Partial results at time of interruption:
+
+| Track | Config | Run dir | Last eval (incomplete) | Steps reached |
+|-------|--------|---------|------------------------|---------------|
+| track3 | grid | `models/ppo_20260205_205153` | 12.24 @ 380k | ~380k/1M |
+| track3 | grid+reward_exp | `models/ppo_20260205_205157` | 8.83 @ 260k | ~260k/1M |
+| track3 | grid+reward_exp+ent=0.03 | `models/ppo_20260205_205301` | -1.21 @ 260k | ~260k/1M |
+
+These runs need to be rerun sequentially to get valid results.
+
+### v4 Summary
+
+| Experiment | Result |
+|------------|--------|
+| Reward shaping on simple | **+7%** (32.68 vs 30.59) |
+| Reward shaping on supersimple | ~0% (47.26 vs 47.31) |
+| Reward shaping on square_test | ~0% (64.02 vs 63.92) |
+| Reward shaping on track2 | **-26%** (27.36 vs 37.00) |
+| Reward shaping on track4 | ~0% (30.63 vs 30.59) |
+| Combined (rwd+2048) on track1 | ~0% (32.75 vs 32.80) |
+| Combined (rwd+2048) on track3 | -99% collapsed |
+| Higher entropy on track3 | -28% (16.66 vs 23.13) |
+| Higher entropy + rwd on track3 | -28% (16.61 vs 23.13) |
+| Grid obs on track3 | INCOMPLETE -- rerun needed |
+
+**Key findings:**
+- Reward shaping is track-specific: helps track1 (+30% in v3) and simple (+7%), neutral on easy tracks, harmful on track2.
+- Combining multiple modifications does not stack -- reward shaping + larger rollouts = same as reward shaping alone (track1) or collapse (track3).
+- Higher entropy (0.03) helps track2 but hurts track3. These tracks have opposite exploration needs.
+- Track3 remains resistant to every PPO modification tested across v3 and v4. Grid obs is the last untested approach but runs are incomplete.
+- No new records set in v4. Track1's 32.80 from v3 remains the only improvement over v2 baselines.
+
 ## Notes
 - All config snapshots and READMEs are in `Good Models/` (current physics).
 - Model weights (`best_model.zip`) are present locally but excluded from git by `.gitignore`.
 - Legacy results and configs live in `legacy/Good Models/`.
+- v4 experiment configs created: `simple_reward_exp.yaml`, `supersimple_reward_exp.yaml`, `square_test_reward_exp.yaml`, `track2_reward_exp.yaml`, `track4_reward_exp.yaml`, `track3_grid.yaml`, `track3_grid_reward_exp.yaml`.

@@ -30,8 +30,8 @@ def test_multi_track_env_round_robin_cycles_tracks():
 def test_multi_track_env_rejects_mismatched_observation_space():
     config_a = _default_config()
     config_b = _default_config()
-    config_b.lidar.num_rays = config_a.lidar.num_rays + 1
-    config_b.lidar.ray_angles = config_b.lidar.ray_angles + [135.0]
+    # Grid obs depends on grid_size; changing it creates a shape mismatch.
+    config_b.grid.grid_size = config_a.grid.grid_size + 4
 
     with pytest.raises(ValueError, match="observation space"):
         MultiTrackEnv([config_a, config_b], mode="round_robin")

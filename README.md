@@ -54,9 +54,9 @@ This repo includes a clearly labeled legacy snapshot under `legacy/`. To reprodu
 
 Each step: the agent sends `[steering, throttle]` to the car, Pymunk simulates physics (lateral friction, speed-dependent steering), sensors observe the result, and a reward is computed.
 
-**Observation types:**
-- **Lidar** -- 9 rays in a forward arc, each returning a normalized wall distance [0,1]. Simple, fast, works with MLP policies.
-- **Grid (CNN)** -- A 36x36 binary occupancy grid projected ahead of the car using a perspective transform. Nearby cells are dense, distant cells are sparse. Processed by a CNN feature extractor. Slightly outperforms lidar on harder tracks.
+**Observation types (default: grid):**
+- **Grid (CNN)** -- A 36x36 binary occupancy grid projected ahead of the car using a perspective transform. Nearby cells are dense, distant cells are sparse. Processed by a CNN feature extractor (NatureCNN). Default for all configs.
+- **Lidar** -- 9 rays in a forward arc, each returning a normalized wall distance [0,1]. Simple, fast, works with MLP policies. Used by legacy/Good Models snapshots.
 
 **Reward structure:**
 

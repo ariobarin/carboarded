@@ -60,7 +60,7 @@ grid:
   fov_horizontal: 90.0
   near_distance: 30.0
   far_distance: 300.0
-obs_type: lidar
+obs_type: grid
 render:
   screen_width: 800
   screen_height: 600

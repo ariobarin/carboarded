@@ -24,7 +24,7 @@ def test_track_export_uses_good_model_defaults(tmp_path):
     editor._save_track_to_path(str(output_path))
 
     config = EnvConfig.from_yaml(str(output_path))
-    assert config.obs_type == "lidar"
+    assert config.obs_type == "grid"
     assert config.progress_reward_scale == 0.5
     assert config.speed_bonus_scale == 0.01
     assert config.collision_penalty == -2.0

@@ -45,9 +45,9 @@ CLI flags override YAML config values. `--config` defaults to `configs/default.y
 ### Simulation loop (per step)
 Agent sends `[steering, throttle]` -> `Car.apply_control()` + `Car.update_friction()` -> `pymunk.Space.step()` -> `Lidar.scan()` (always) + optionally `compute_grid()` -> `_calculate_reward()` -> return `(obs, reward, terminated, truncated, info)`.
 
-### Two observation modes
-- **Lidar** (`obs_type: lidar`): 9-ray forward arc, normalized [0,1] floats. Works with MLP policies.
-- **Grid** (`obs_type: grid`): 36x36 binary occupancy grid via perspective projection. Shape `(36,36,1)` uint8. Requires CNN policy (NatureCNN). Slightly outperforms lidar on hard tracks.
+### Two observation modes (default: grid)
+- **Grid** (`obs_type: grid`): 36x36 binary occupancy grid via perspective projection. Shape `(36,36,1)` uint8. Requires CNN policy (NatureCNN). Default for all configs.
+- **Lidar** (`obs_type: lidar`): 9-ray forward arc, normalized [0,1] floats. Works with MLP policies. Used by legacy/Good Models snapshots.
 
 ### Track types
 - **Elliptical** (`track_type: elliptical`): Parametric oval with optional waviness. Implemented in `physics/track.py` (`Track` class).

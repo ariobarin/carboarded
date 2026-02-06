@@ -1,5 +1,3 @@
-# Default config (matches custom_tracks/simple.yaml)
-
 car:
   mass: 1.0
   width: 40.0
@@ -32,29 +30,23 @@ lidar:
 track:
   track_type: custom
   custom:
-    width: 180.0
+    width: 100.0
     num_checkpoints: 64
     start_node_index: 0
     start_offset: 0.0
     nodes:
-      - x: -51.24938479068313
-        y: -94.22054882337389
-        radius: 200
-      - x: 536.6848733217671
-        y: 238.46420210854916
-        radius: 200
-      - x: 1210.6582911579903
-        y: 74.98979863338008
-        radius: 200
-      - x: 972.6166159222179
-        y: 857.9461521197162
-        radius: 200
-      - x: 525.2129853585973
-        y: 404.8065775745107
-        radius: 200
-      - x: 29.05383095150519
-        y: 671.5279727182076
-        radius: 200
+      - x: 200
+        y: 150
+        radius: 60
+      - x: 600
+        y: 150
+        radius: 60
+      - x: 600
+        y: 450
+        radius: 60
+      - x: 200
+        y: 450
+        radius: 60
 grid:
   grid_size: 36
   camera_height: 100.0
@@ -108,8 +100,8 @@ physics_dt: 0.016666666666666666
 max_episode_steps: 512
 checkpoint_reward: 1.0
 max_checkpoint_skip: 10
-speed_bonus_scale: 0.01
-progress_reward_scale: 0.5
+speed_bonus_scale: 0.03
+progress_reward_scale: 0.65
 slowdown_distance: 0.0
 slowdown_penalty_scale: 0.0
 collision_penalty: -2.0

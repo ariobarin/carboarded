@@ -181,9 +181,9 @@ class EnvConfig:
             config.track = TrackConfig(**track_data)
         if "grid" in data:
             config.grid = GridConfig(**data["grid"])
-        # Default to "lidar" for backward compat with configs that predate
-        # grid support.  Configs that want grid must set obs_type explicitly.
-        config.obs_type = data.get("obs_type", "lidar")
+        # Default to "grid" (CNN occupancy grid).  Legacy configs that need
+        # lidar must set obs_type explicitly.
+        config.obs_type = data.get("obs_type", "grid")
         if "render" in data:
             # Convert color lists to tuples
             render_data = data["render"]
