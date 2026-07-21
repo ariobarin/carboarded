@@ -7,7 +7,7 @@ name = "racing_sim"
 version = "0.1.0"
 description = "2D autonomous racing car simulation with Lidar and RL"
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.12"
 license = {text = "MIT"}
 dependencies = [
     "gymnasium>=0.29.0",
