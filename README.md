@@ -2,7 +2,7 @@
 
 A 2D autonomous racing environment for training reinforcement learning agents. Built with Gymnasium, Pymunk physics, and Stable-Baselines3.
 
-<!-- TODO: Add a GIF/screenshot of a trained agent driving -->
+![Racing sim render showing the track, car, lidar rays, and occupancy grid overlay](docs/screenshot.png)
 
 ## Quick Start
 
